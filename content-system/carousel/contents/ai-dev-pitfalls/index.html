@@ -1,0 +1,256 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI 輔助開發的 3 個真實踩坑故事</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700&family=Noto+Sans+TC:wght@300;400;500;700&family=Noto+Serif+TC:wght@400;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="../../base.css">
+    <link rel="stylesheet" href="../../../themes/default.css">
+</head>
+<body>
+
+<!-- P1: Cover -->
+<div class="page">
+    <div class="inner" style="justify-content:center;">
+        <p class="cover-sub" contenteditable="true">來自真實團隊的血淚教訓</p>
+        <h1 class="cover-title" contenteditable="true">AI 越強<br>坑越深</h1>
+        <div class="deco"></div>
+        <p class="cover-desc" contenteditable="true">3 個 AI 輔助開發的真實踩坑故事<br>每個都是我們自己踩過的</p>
+    </div>
+</div>
+
+<!-- P2: Hook — 設定反差 -->
+<div class="page">
+    <div class="inner">
+        <h2 class="page-title" contenteditable="true">AI 給的建議<br>看起來都很合理</h2>
+        <p class="body" contenteditable="true">語法正確、邏輯通順、build 會過。</p>
+        <p class="body" contenteditable="true">但「技術上正確」和「實際上能用」之間，有一條你看不見的線。</p>
+        <div class="callout mt-auto" contenteditable="true">
+            <strong>AI 有資深工程師的能力，但只有初階工程師的判斷力。</strong>
+        </div>
+    </div>
+</div>
+
+<!-- P3: Story 1 — .dockerignore 標題 -->
+<div class="page">
+    <div class="inner" style="justify-content:center;">
+        <p class="small" contenteditable="true" style="text-transform:uppercase;letter-spacing:.1em;margin-bottom:24px;">STORY 01</p>
+        <h2 class="page-title" contenteditable="true">.dockerignore<br>配置沒有審核</h2>
+        <div class="deco"></div>
+        <p class="body" contenteditable="true" style="color:var(--secondary);">AI 的建議看起來合理，<br>但它不了解你的上下文。</p>
+    </div>
+</div>
+
+<!-- P4: Story 1 — 過程 -->
+<div class="page">
+    <div class="inner">
+        <h2 class="page-title" contenteditable="true">發生了什麼？</h2>
+        <div class="steps">
+            <div class="step">
+                <div class="step-num">01</div>
+                <div>
+                    <div class="step-t">AI 建議加上 *.md</div>
+                    <div class="step-d">排除文檔，減少 Docker image 大小。聽起來很合理。</div>
+                </div>
+            </div>
+            <div class="step">
+                <div class="step-num">02</div>
+                <div>
+                    <div class="step-t">Build 成功、部署完成</div>
+                    <div class="step-d">一切正常，沒有任何錯誤。</div>
+                </div>
+            </div>
+            <div class="step">
+                <div class="step-num">03</div>
+                <div>
+                    <div class="step-t">打開網站 — 全部空白</div>
+                    <div class="step-d">網頁靜態內容全靠 content/*.md，glob pattern 遞迴匹配把它們全排除了。</div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- P5: Story 1 — 教訓 -->
+<div class="page">
+    <div class="inner">
+        <h2 class="page-title" contenteditable="true">教訓</h2>
+        <div class="compare">
+            <div class="compare-col">
+                <div class="compare-head bad">AI 看到的</div>
+                <div class="compare-row">*.md 是文檔檔案</div>
+                <div class="compare-row">排除可以減少 image 大小</div>
+                <div class="compare-row">技術上完全正確</div>
+            </div>
+            <div class="compare-col">
+                <div class="compare-head good">它不知道的</div>
+                <div class="compare-row">content/*.md 是網頁內容來源</div>
+                <div class="compare-row">glob 會遞迴匹配所有層級</div>
+                <div class="compare-row">需要 !content/** 例外規則</div>
+            </div>
+        </div>
+        <div class="highlight-card mt-auto">
+            <div class="h-text">AI 不了解你的上下文，它的建議需要你的判斷。</div>
+        </div>
+    </div>
+</div>
+
+<!-- P6: Story 2 — Mock Data 標題 -->
+<div class="page">
+    <div class="inner" style="justify-content:center;">
+        <p class="small" contenteditable="true" style="text-transform:uppercase;letter-spacing:.1em;margin-bottom:24px;">STORY 02</p>
+        <h2 class="page-title" contenteditable="true">Mock Data<br>缺欄位</h2>
+        <div class="deco"></div>
+        <p class="body" contenteditable="true" style="color:var(--secondary);">AI 不會質疑你的數據。<br>你給它什麼，它就用什麼。</p>
+    </div>
+</div>
+
+<!-- P7: Story 2 — 過程 (Chat bubble) -->
+<div class="page">
+    <div class="inner">
+        <h2 class="page-title" contenteditable="true">發生了什麼？</h2>
+        <div class="chat">
+            <div class="bubble user">
+                <div class="label">你</div>
+                幫我寫 E2E 測試，測試 SEO 的 JSON-LD 輸出
+            </div>
+            <div class="bubble ai">
+                <div class="label">Claude</div>
+                好的，我來為 JSON-LD 寫完整的 E2E 測試...
+            </div>
+            <div class="bubble user">
+                <div class="label">你</div>
+                Unit test 全過，但 E2E 一跑就爆？
+            </div>
+            <div class="bubble ai">
+                <div class="label">Claude</div>
+                讓我檢查... mock data 的 JSON 從頭到尾就沒有 jsonLd 這個欄位。
+            </div>
+        </div>
+        <div class="callout mt-auto" contenteditable="true">
+            AI 不會回頭跟你確認：<strong>「這個 data 好像少了什麼？」</strong>
+        </div>
+    </div>
+</div>
+
+<!-- P8: Story 3 — 數據遷移標題 -->
+<div class="page">
+    <div class="inner" style="justify-content:center;">
+        <p class="small" contenteditable="true" style="text-transform:uppercase;letter-spacing:.1em;margin-bottom:24px;">STORY 03</p>
+        <h2 class="page-title" contenteditable="true">數據遷移<br>丟失結構</h2>
+        <div class="deco"></div>
+        <p class="body" contenteditable="true" style="color:var(--secondary);">AI 完美執行了<br>一份不完整的 Spec。</p>
+    </div>
+</div>
+
+<!-- P9: Story 3 — 過程 -->
+<div class="page">
+    <div class="inner">
+        <h2 class="page-title" contenteditable="true">發生了什麼？</h2>
+        <div class="task-demo">
+            <div class="task-command">
+                <div class="task-label">SPEC 指令</div>
+                「把 stub 數據替換成真實內容」
+            </div>
+            <div class="task-result">
+                <div class="task-label">AI 執行結果</div>
+                ✅ 內容已替換完成
+            </div>
+        </div>
+        <p class="body" contenteditable="true">替換完才發現：</p>
+        <div class="steps">
+            <div class="step">
+                <div class="step-num" style="color:var(--red);">✕</div>
+                <div><div class="step-t">subtitle 欄位資料不見了</div></div>
+            </div>
+            <div class="step">
+                <div class="step-num" style="color:var(--red);">✕</div>
+                <div><div class="step-t">圖片路徑全部指向錯誤</div></div>
+            </div>
+            <div class="step">
+                <div class="step-num" style="color:var(--red);">✕</div>
+                <div><div class="step-t">區塊類型的語意被改掉</div></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- P10: Story 3 — 教訓 + 總結 -->
+<div class="page">
+    <div class="inner">
+        <h2 class="page-title" contenteditable="true">三個故事<br>三種坑</h2>
+        <div class="feature-grid" style="grid-template-columns:1fr;">
+            <div class="feature-item" style="border-radius:12px;">
+                <div class="feature-label">01 — AI 不了解你的上下文</div>
+                <div class="feature-detail">它的建議需要你的判斷</div>
+            </div>
+            <div class="feature-item" style="border-radius:12px;">
+                <div class="feature-label">02 — AI 不會質疑你的數據</div>
+                <div class="feature-detail">輸入有問題它不會告訴你</div>
+            </div>
+            <div class="feature-item" style="border-radius:12px;">
+                <div class="feature-label">03 — AI 會完美執行錯誤的指令</div>
+                <div class="feature-detail">Spec 寫不好比不寫更危險</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- P11: 解法 — 先 Research 再行動 -->
+<div class="page">
+    <div class="inner">
+        <h2 class="page-title" contenteditable="true">解法：<br>先 Research 再行動</h2>
+        <p class="body" contenteditable="true">三個坑的共同原因：直接讓 AI 動手，卻沒有先讓它理解現場。</p>
+        <div class="compare" style="margin-top:12px;">
+            <div class="compare-col">
+                <div class="compare-head bad">直接開做</div>
+                <div class="compare-row">「幫我做 X」</div>
+                <div class="compare-row">AI 憑預設假設行動</div>
+                <div class="compare-row">產出快但方向常歪</div>
+                <div class="compare-row">出事才發現</div>
+            </div>
+            <div class="compare-col">
+                <div class="compare-head good">先 Research</div>
+                <div class="compare-row">「先了解 X 再做」</div>
+                <div class="compare-row">AI 先讀現有脈絡</div>
+                <div class="compare-row">產出慢一點但穩定</div>
+                <div class="compare-row">做之前就能擋住</div>
+            </div>
+        </div>
+        <div class="diagram mt-auto">
+            <div class="diagram-row">
+                <div class="diagram-node light">
+                    <div class="node-t">讀現況</div>
+                    <div class="node-d">現有程式碼、設定、數據結構</div>
+                </div>
+                <div class="diagram-node light">
+                    <div class="node-t">寫 Spec</div>
+                    <div class="node-d">定義邊界、保留項、驗收條件</div>
+                </div>
+                <div class="diagram-node">
+                    <div class="node-t">再執行</div>
+                    <div class="node-d">在約束內行動，偏差最小化</div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- P12: CTA -->
+<div class="page">
+    <div class="inner" style="justify-content:center;">
+        <h2 class="page-title" contenteditable="true">寫得模糊<br>AI 就精準地做錯</h2>
+        <div class="deco"></div>
+        <p class="body" contenteditable="true">AI 導入的不只是寫 code 的能力，而是一整條從需求到上線的端到端流程。</p>
+        <div class="callout" contenteditable="true">
+            <strong>先寫規格，再寫程式。<br>Spec Before Code.</strong>
+        </div>
+        <p class="small mt-auto" style="text-align:center;margin-top:auto;" contenteditable="true">@ericcai</p>
+    </div>
+</div>
+
+</body>
+</html>

@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{TITLE}}</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700&family=Noto+Sans+TC:wght@300;400;500;700&family=Noto+Serif+TC:wght@400;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="../../base.css">
+    <link rel="stylesheet" href="../../../themes/default.css">
+</head>
+<body>
+
+<!-- P1: Cover -->
+<div class="page">
+    <div class="inner" style="justify-content:center;">
+        <p class="cover-sub" contenteditable="true">{{COVER_SUB}}</p>
+        <h1 class="cover-title" contenteditable="true">{{COVER_TITLE}}</h1>
+        <div class="deco"></div>
+        <p class="cover-desc" contenteditable="true">{{COVER_DESC}}</p>
+        <div class="illust mt-auto">
+            <img src="cover-illust.png" alt="{{TITLE}}">
+        </div>
+    </div>
+</div>
+
+<!-- P2: Content page (text + callout) -->
+<div class="page">
+    <div class="inner">
+        <h2 class="page-title" contenteditable="true">{{PAGE_TITLE}}</h2>
+        <p class="body" contenteditable="true">{{BODY_1}}</p>
+        <p class="body" contenteditable="true">{{BODY_2}}</p>
+        <div class="callout mt-auto" contenteditable="true">
+            {{CALLOUT}}
+        </div>
+    </div>
+</div>
+
+<!-- P3: Content page (image top + text bottom) -->
+<div class="page">
+    <div class="inner">
+        <h2 class="page-title" contenteditable="true">{{PAGE_TITLE}}</h2>
+        <div class="illust">
+            <img src="{{IMAGE}}" alt="{{ALT}}">
+        </div>
+        <p class="body" contenteditable="true">{{BODY_1}}</p>
+        <p class="body" contenteditable="true">{{BODY_2}}</p>
+    </div>
+</div>
+
+<!-- P4: Content page (text top + image bottom) -->
+<div class="page">
+    <div class="inner">
+        <h2 class="page-title" contenteditable="true">{{PAGE_TITLE}}</h2>
+        <p class="body" contenteditable="true">{{BODY_1}}</p>
+        <p class="body" contenteditable="true">{{BODY_2}}</p>
+        <div class="illust mt-auto">
+            <img src="{{IMAGE}}" alt="{{ALT}}">
+        </div>
+    </div>
+</div>
+
+<!-- Closing page (callout + CTA) -->
+<div class="page">
+    <div class="inner" style="justify-content:center;">
+        <h2 class="page-title" contenteditable="true">{{PAGE_TITLE}}</h2>
+        <p class="body" contenteditable="true">{{BODY_1}}</p>
+        <p class="body" contenteditable="true">{{BODY_2}}</p>
+        <div class="callout" contenteditable="true">
+            {{CALLOUT}}
+        </div>
+        <div style="background:#1a1a1a;border-radius:12px;padding:32px 36px;text-align:center;margin-top:auto;" contenteditable="true">
+            <span style="color:#fff;font-weight:700;font-size:1.7rem;display:block;margin-bottom:8px;">CTA Line 1</span>
+            <span style="color:#ccc;font-weight:600;font-size:1.7rem;">CTA Line 2</span>
+        </div>
+        <p class="small" style="margin-top:16px;" contenteditable="true">@your_handle</p>
+    </div>
+</div>
+
+</body>
+</html>

@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<title>Theme swap · default vs warm-dark</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=JetBrains+Mono:wght@500&family=Noto+Sans+TC:wght@400;600&display=swap" rel="stylesheet">
+<style>
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{
+    background:#0E0D0B;color:#EDEAE3;
+    font:400 16px/1.6 "Inter","Noto Sans TC",sans-serif;
+    padding:48px 32px;
+  }
+  .wrap{max-width:1280px;margin:0 auto}
+  .head{margin-bottom:48px;text-align:center}
+  .head .mono{font-family:"JetBrains Mono",monospace;color:#F5A623;font-weight:500;text-transform:uppercase;letter-spacing:.18em;font-size:13px;margin-bottom:16px}
+  .head h1{font:700 38px/1.15 "Inter","Noto Sans TC",sans-serif;letter-spacing:-.015em;margin-bottom:14px}
+  .head p{color:#A09C95;font-size:17px;max-width:720px;margin:0 auto}
+  .note{
+    margin:28px auto 0;max-width:760px;
+    padding:20px 26px;
+    background:#17161A;border:1px solid #2A2730;border-left:3px solid #F5A623;
+    border-radius:4px;
+    font:400 15px/1.6 "Inter","Noto Sans TC",sans-serif;color:#EDEAE3;
+    text-align:left;
+  }
+  .note code{font-family:"JetBrains Mono",monospace;color:#F5A623;font-size:13px;background:rgba(245,166,35,.08);padding:2px 6px;border-radius:3px}
+  .row{margin-bottom:72px}
+  .row-head{
+    display:flex;align-items:baseline;gap:16px;margin-bottom:18px;
+    padding-bottom:10px;border-bottom:1px solid #2A2730;
+  }
+  .row-idx{font:500 13px/1 "JetBrains Mono",monospace;color:#F5A623;letter-spacing:.18em;text-transform:uppercase}
+  .row-title{font:600 22px/1.2 "Inter","Noto Sans TC",sans-serif;color:#EDEAE3}
+  .pair{display:grid;grid-template-columns:1fr 1fr;gap:24px}
+  .cell-label{
+    font:500 12px/1 "JetBrains Mono",monospace;
+    color:#A09C95;letter-spacing:.18em;text-transform:uppercase;
+    margin-bottom:12px;
+    display:flex;align-items:center;gap:8px;
+  }
+  .cell-label .dot{width:8px;height:8px;border-radius:50%}
+  .cell.a .dot{background:#6B7280}
+  .cell.b .dot{background:#F5A623}
+  .cell.b .cell-label{color:#F5A623}
+  .cell img{
+    width:100%;display:block;
+    border-radius:4px;
+    box-shadow:0 10px 40px rgba(0,0,0,.5);
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="head">
+    <p class="mono">Theme swap · pure CSS</p>
+    <h1>同一份 HTML，兩個主題</h1>
+    <p>ai-dev-pitfalls 的 index.html 完全沒動，只把 <code>themes/default.css</code> 換成 <code>themes/warm-dark.css</code>。<br>證明 warm-dark 是乾淨 theme，不綁特定內容結構。</p>
+    <div class="note">
+      換 theme 只需一行：<br>
+      <code>&lt;link rel="stylesheet" href="../../../themes/warm-dark.css"&gt;</code>
+    </div>
+  </header>
+  <script>
+    const rows = [
+      ["Cover","封面"],
+      ["Hook","反差 / 引言"],
+      ["Story 01 · Title","踩坑 ①：.dockerignore"],
+      ["Story 01 · What","發生了什麼"],
+      ["Story 01 · Lesson","對照與教訓"],
+      ["Story 02 · Title","踩坑 ②：Mock Data"],
+      ["Story 02 · Chat","對話重建現場"],
+      ["Story 03 · Title","踩坑 ③：數據遷移"],
+      ["Story 03 · What","「已完成」的真相"],
+      ["Recap","三個故事三種坑"],
+      ["Solution","先 Research 再行動"],
+      ["CTA","Spec Before Code"],
+    ];
+    const root = document.querySelector(".wrap");
+    rows.forEach((r,i) => {
+      const idx = String(i+1).padStart(2,"0");
+      const el = document.createElement("section");
+      el.className = "row";
+      el.innerHTML = `
+        <div class="row-head">
+          <span class="row-idx">Slide ${idx}</span>
+          <span class="row-title">${r[0]} · ${r[1]}</span>
+        </div>
+        <div class="pair">
+          <div class="cell a">
+            <div class="cell-label"><span class="dot"></span>default.css</div>
+            <img src="exports-original/p${idx}.png" loading="lazy" alt="default ${r[0]}">
+          </div>
+          <div class="cell b">
+            <div class="cell-label"><span class="dot"></span>warm-dark.css</div>
+            <img src="exports-warmdark/p${idx}.png" loading="lazy" alt="warm-dark ${r[0]}">
+          </div>
+        </div>`;
+      root.appendChild(el);
+    });
+  </script>
+</div>
+</body>
+</html>

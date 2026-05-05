@@ -1,0 +1,107 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<title>{{TITLE}}</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@300;400;500;600;700;900&family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../../base.css">
+<script src="../../deck-stage.js"></script>
+
+<!-- Optional speaker notes (index matches slide order):
+<script type="application/json" id="speaker-notes">
+[
+  "Slide 01: opening remarks...",
+  "Slide 02: talking points..."
+]
+</script>
+-->
+</head>
+<body>
+
+<deck-stage width="1920" height="1080">
+
+  <!-- ═══════════════ Slide 01 | Cover ═══════════════ -->
+  <section class="slide dark" data-label="Cover">
+    <div class="chrome">
+      <div class="tl">{{TOPIC}}</div>
+      <div class="tr"><span class="dot"></span>{{DATE_OR_STATUS}}</div>
+      <div class="bl">01 / {{TOTAL}}</div>
+      <div class="br">{{BRAND}}</div>
+    </div>
+
+    <div style="position: relative; z-index: 2; height: 100%; display: flex; flex-direction: column; justify-content: center; max-width: 1400px;">
+      <div class="eyebrow" style="margin-bottom: 40px;">{{EYEBROW}}</div>
+      <div class="display" style="color: var(--cream);">
+        {{TITLE_LINE_1}}<br>
+        <span style="color: var(--coral);">{{TITLE_LINE_2}}</span>
+      </div>
+      <div class="subtitle mt-l" style="color: var(--gray-2); max-width: 900px;">
+        {{COVER_SUBTITLE}}
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════════════ Slide 02 | Section ═══════════════ -->
+  <section class="slide" data-label="Section">
+    <div class="chrome">
+      <div class="tl">{{TOPIC}}</div>
+      <div class="bl">02 / {{TOTAL}}</div>
+      <div class="br">{{BRAND}}</div>
+    </div>
+
+    <div class="section-head">
+      <div class="num">02</div>
+      <div class="title-l">{{SECTION_TITLE}}</div>
+      <div class="rule"></div>
+    </div>
+
+    <div class="mt-l">
+      <div class="numbered-item">
+        <div class="n">01</div>
+        <div>
+          <div class="title-m">{{POINT_1_TITLE}}</div>
+          <div class="small mt-s">{{POINT_1_DESC}}</div>
+        </div>
+      </div>
+      <div class="numbered-item">
+        <div class="n">02</div>
+        <div>
+          <div class="title-m">{{POINT_2_TITLE}}</div>
+          <div class="small mt-s">{{POINT_2_DESC}}</div>
+        </div>
+      </div>
+      <div class="numbered-item">
+        <div class="n">03</div>
+        <div>
+          <div class="title-m">{{POINT_3_TITLE}}</div>
+          <div class="small mt-s">{{POINT_3_DESC}}</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════════════ Slide 03 | CTA ═══════════════ -->
+  <section class="slide dark" data-label="CTA">
+    <div class="chrome">
+      <div class="tl">{{TOPIC}}</div>
+      <div class="bl">03 / {{TOTAL}}</div>
+      <div class="br">{{BRAND}}</div>
+    </div>
+
+    <div style="position: relative; z-index: 2; height: 100%; display: flex; flex-direction: column; justify-content: center; max-width: 1400px;">
+      <div class="eyebrow" style="margin-bottom: 32px;">{{CTA_EYEBROW}}</div>
+      <div class="title-xl" style="color: var(--cream);">
+        {{CTA_HEADLINE}}
+      </div>
+      <div class="subtitle mt-m" style="color: var(--gray-2); max-width: 900px;">
+        {{CTA_SUBTITLE}}
+      </div>
+    </div>
+  </section>
+
+</deck-stage>
+
+</body>
+</html>

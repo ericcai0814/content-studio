@@ -1,0 +1,1807 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<title>AI Flow Sprint 說明會</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@300;400;500;600;700;900&family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<script>
+/**
+ * <deck-stage> — reusable web component for HTML decks.
+ *
+ * Handles:
+ *  (a) speaker notes — reads <script type="application/json" id="speaker-notes">
+ *      and posts {slideIndexChanged: N} to the parent window on nav.
+ *  (b) keyboard navigation — ←/→, PgUp/PgDn, Space, Home/End, number keys.
+ *  (c) press R to reset to slide 0 (with a tasteful keyboard hint).
+ *  (d) bottom-center overlay showing slide count + hints, fades out on idle.
+ *  (e) auto-scaling — inner canvas is a fixed design size (default 1920×1080)
+ *      scaled with `transform: scale()` to fit the viewport, letterboxed.
+ *      Set the `noscale` attribute to render at authored size (1:1) — the
+ *      PPTX exporter sets this so its DOM capture sees unscaled geometry.
+ *  (f) print — `@media print` lays every slide out as its own page at the
+ *      design size, so the browser's Print → Save as PDF produces a clean
+ *      one-page-per-slide PDF with no extra setup.
+ *
+ * Slides are HIDDEN, not unmounted. Non-active slides stay in the DOM with
+ * `visibility: hidden` + `opacity: 0`, so their state (videos, iframes,
+ * form inputs, React trees) is preserved across navigation.
+ *
+ * Lifecycle event — the component dispatches a `slidechange` CustomEvent on
+ * itself whenever the active slide changes (including the initial mount).
+ * The event bubbles and composes out of shadow DOM, so you can listen on
+ * the <deck-stage> element or on document:
+ *
+ *   document.querySelector('deck-stage').addEventListener('slidechange', (e) => {
+ *     e.detail.index         // new 0-based index
+ *     e.detail.previousIndex // previous index, or -1 on init
+ *     e.detail.total         // total slide count
+ *     e.detail.slide         // the new active slide element
+ *     e.detail.previousSlide // the prior slide element, or null on init
+ *     e.detail.reason        // 'init' | 'keyboard' | 'click' | 'tap' | 'api'
+ *   });
+ *
+ * Persistence: current slide index is saved to localStorage keyed by the
+ * document path, so refresh returns you to the same place.
+ *
+ * Usage:
+ *   <deck-stage width="1920" height="1080">
+ *     <section data-label="Title">...</section>
+ *     <section data-label="Agenda">...</section>
+ *   </deck-stage>
+ *
+ * Slides are the direct element children of <deck-stage>. Each slide is
+ * automatically tagged with:
+ *   - data-screen-label="NN Label"   (1-indexed, for comment flow)
+ *   - data-om-validate="no_overflowing_text,no_overlapping_text,slide_sized_text"
+ */
+
+(() => {
+  const DESIGN_W_DEFAULT = 1920;
+  const DESIGN_H_DEFAULT = 1080;
+  const STORAGE_PREFIX = 'deck-stage:slide:';
+  const OVERLAY_HIDE_MS = 1800;
+  const VALIDATE_ATTR = 'no_overflowing_text,no_overlapping_text,slide_sized_text';
+
+  const pad2 = (n) => String(n).padStart(2, '0');
+
+  const stylesheet = `
+    :host {
+      position: fixed;
+      inset: 0;
+      display: block;
+      background: #000;
+      color: #fff;
+      font-family: -apple-system, BlinkMacSystemFont, "Helvetica Neue", Helvetica, Arial, sans-serif;
+      overflow: hidden;
+    }
+
+    .stage {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .canvas {
+      position: relative;
+      transform-origin: center center;
+      flex-shrink: 0;
+      background: #fff;
+      will-change: transform;
+    }
+
+    /* Slides live in light DOM (via <slot>) so authored CSS still applies.
+       We absolutely position each slotted child to stack them. */
+    ::slotted(*) {
+      position: absolute !important;
+      inset: 0 !important;
+      width: 100% !important;
+      height: 100% !important;
+      box-sizing: border-box !important;
+      overflow: hidden;
+      opacity: 0;
+      pointer-events: none;
+      visibility: hidden;
+    }
+    ::slotted([data-deck-active]) {
+      opacity: 1;
+      pointer-events: auto;
+      visibility: visible;
+    }
+
+    /* Tap zones for mobile — back/forward thirds like Stories.
+       Transparent, no visible UI, don't block the overlay. */
+    .tapzones {
+      position: fixed;
+      inset: 0;
+      display: flex;
+      z-index: 2147482000;
+      pointer-events: none;
+    }
+    .tapzone {
+      flex: 1;
+      pointer-events: auto;
+      -webkit-tap-highlight-color: transparent;
+    }
+    /* Only activate tap zones on coarse pointers (touch devices). */
+    @media (hover: hover) and (pointer: fine) {
+      .tapzones { display: none; }
+    }
+
+    .overlay {
+      position: fixed;
+      left: 50%;
+      bottom: 22px;
+      transform: translate(-50%, 6px) scale(0.92);
+      filter: blur(6px);
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      padding: 4px;
+      background: #000;
+      color: #fff;
+      border-radius: 999px;
+      font-size: 12px;
+      font-feature-settings: "tnum" 1;
+      letter-spacing: 0.01em;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 260ms ease, transform 260ms cubic-bezier(.2,.8,.2,1), filter 260ms ease;
+      transform-origin: center bottom;
+      z-index: 2147483000;
+      user-select: none;
+    }
+    .overlay[data-visible] {
+      opacity: 1;
+      pointer-events: auto;
+      transform: translate(-50%, 0) scale(1);
+      filter: blur(0);
+    }
+
+    .btn {
+      appearance: none;
+      -webkit-appearance: none;
+      background: transparent;
+      border: 0;
+      margin: 0;
+      padding: 0;
+      color: inherit;
+      font: inherit;
+      cursor: default;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      height: 28px;
+      min-width: 28px;
+      border-radius: 999px;
+      color: rgba(255,255,255,0.72);
+      transition: background 140ms ease, color 140ms ease;
+      -webkit-tap-highlight-color: transparent;
+    }
+    .btn:hover { background: rgba(255,255,255,0.12); color: #fff; }
+    .btn:active { background: rgba(255,255,255,0.18); }
+    .btn:focus { outline: none; }
+    .btn:focus-visible { outline: none; }
+    .btn::-moz-focus-inner { border: 0; }
+    .btn svg { width: 14px; height: 14px; display: block; }
+    .btn.reset {
+      font-size: 11px;
+      font-weight: 500;
+      letter-spacing: 0.02em;
+      padding: 0 10px 0 12px;
+      gap: 6px;
+      color: rgba(255,255,255,0.72);
+    }
+    .btn.reset .kbd {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-width: 16px;
+      height: 16px;
+      padding: 0 4px;
+      font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+      font-size: 10px;
+      line-height: 1;
+      color: rgba(255,255,255,0.88);
+      background: rgba(255,255,255,0.12);
+      border-radius: 4px;
+    }
+
+    .count {
+      font-variant-numeric: tabular-nums;
+      color: #fff;
+      font-weight: 500;
+      padding: 0 8px;
+      min-width: 42px;
+      text-align: center;
+      font-size: 12px;
+    }
+    .count .sep { color: rgba(255,255,255,0.45); margin: 0 3px; font-weight: 400; }
+    .count .total { color: rgba(255,255,255,0.55); }
+
+    .divider {
+      width: 1px;
+      height: 14px;
+      background: rgba(255,255,255,0.18);
+      margin: 0 2px;
+    }
+
+    /* ── Print: one page per slide, no chrome ────────────────────────────
+       The screen layout stacks every slide at inset:0 inside a scaled
+       canvas; for print we want them in document flow at the authored
+       design size so the browser paginates one slide per sheet. The
+       @page size is set from the width/height attributes via the inline
+       <style id="deck-stage-print-page"> that connectedCallback injects
+       into <head> (the @page at-rule has no effect inside shadow DOM). */
+    @media print {
+      :host {
+        position: static;
+        inset: auto;
+        background: none;
+        overflow: visible;
+        color: inherit;
+      }
+      .stage { position: static; display: block; }
+      .canvas {
+        transform: none !important;
+        width: auto !important;
+        height: auto !important;
+        background: none;
+        will-change: auto;
+      }
+      ::slotted(*) {
+        position: relative !important;
+        inset: auto !important;
+        width: var(--deck-design-w) !important;
+        height: var(--deck-design-h) !important;
+        box-sizing: border-box !important;
+        opacity: 1 !important;
+        visibility: visible !important;
+        pointer-events: auto;
+        break-after: page;
+        page-break-after: always;
+        break-inside: avoid;
+        overflow: hidden;
+      }
+      ::slotted(*:last-child) {
+        break-after: auto;
+        page-break-after: auto;
+      }
+      .overlay, .tapzones { display: none !important; }
+    }
+  `;
+
+  class DeckStage extends HTMLElement {
+    static get observedAttributes() { return ['width', 'height', 'noscale']; }
+
+    constructor() {
+      super();
+      this._root = this.attachShadow({ mode: 'open' });
+      this._index = 0;
+      this._slides = [];
+      this._notes = [];
+      this._hideTimer = null;
+      this._mouseIdleTimer = null;
+      this._storageKey = STORAGE_PREFIX + (location.pathname || '/');
+
+      this._onKey = this._onKey.bind(this);
+      this._onResize = this._onResize.bind(this);
+      this._onSlotChange = this._onSlotChange.bind(this);
+      this._onMouseMove = this._onMouseMove.bind(this);
+      this._onTapBack = this._onTapBack.bind(this);
+      this._onTapForward = this._onTapForward.bind(this);
+    }
+
+    get designWidth() {
+      return parseInt(this.getAttribute('width'), 10) || DESIGN_W_DEFAULT;
+    }
+    get designHeight() {
+      return parseInt(this.getAttribute('height'), 10) || DESIGN_H_DEFAULT;
+    }
+
+    connectedCallback() {
+      this._render();
+      this._loadNotes();
+      this._syncPrintPageRule();
+      window.addEventListener('keydown', this._onKey);
+      window.addEventListener('resize', this._onResize);
+      window.addEventListener('mousemove', this._onMouseMove, { passive: true });
+      // Initial collection + layout happens via slotchange, which fires on mount.
+    }
+
+    disconnectedCallback() {
+      window.removeEventListener('keydown', this._onKey);
+      window.removeEventListener('resize', this._onResize);
+      window.removeEventListener('mousemove', this._onMouseMove);
+      if (this._hideTimer) clearTimeout(this._hideTimer);
+      if (this._mouseIdleTimer) clearTimeout(this._mouseIdleTimer);
+    }
+
+    attributeChangedCallback() {
+      if (this._canvas) {
+        this._canvas.style.width = this.designWidth + 'px';
+        this._canvas.style.height = this.designHeight + 'px';
+        this._canvas.style.setProperty('--deck-design-w', this.designWidth + 'px');
+        this._canvas.style.setProperty('--deck-design-h', this.designHeight + 'px');
+        this._fit();
+        this._syncPrintPageRule();
+      }
+    }
+
+    _render() {
+      const style = document.createElement('style');
+      style.textContent = stylesheet;
+
+      const stage = document.createElement('div');
+      stage.className = 'stage';
+
+      const canvas = document.createElement('div');
+      canvas.className = 'canvas';
+      canvas.style.width = this.designWidth + 'px';
+      canvas.style.height = this.designHeight + 'px';
+      canvas.style.setProperty('--deck-design-w', this.designWidth + 'px');
+      canvas.style.setProperty('--deck-design-h', this.designHeight + 'px');
+
+      const slot = document.createElement('slot');
+      slot.addEventListener('slotchange', this._onSlotChange);
+      canvas.appendChild(slot);
+      stage.appendChild(canvas);
+
+      // Tap zones (mobile): left third = back, right third = forward.
+      const tapzones = document.createElement('div');
+      tapzones.className = 'tapzones export-hidden';
+      tapzones.setAttribute('aria-hidden', 'true');
+      const tzBack = document.createElement('div');
+      tzBack.className = 'tapzone tapzone--back';
+      const tzMid = document.createElement('div');
+      tzMid.className = 'tapzone tapzone--mid';
+      tzMid.style.pointerEvents = 'none';
+      const tzFwd = document.createElement('div');
+      tzFwd.className = 'tapzone tapzone--fwd';
+      tzBack.addEventListener('click', this._onTapBack);
+      tzFwd.addEventListener('click', this._onTapForward);
+      tapzones.append(tzBack, tzMid, tzFwd);
+
+      // Overlay: compact, solid black, with clickable controls.
+      const overlay = document.createElement('div');
+      overlay.className = 'overlay export-hidden';
+      overlay.setAttribute('role', 'toolbar');
+      overlay.setAttribute('aria-label', 'Deck controls');
+      overlay.innerHTML = `
+        <button class="btn prev" type="button" aria-label="Previous slide" title="Previous (←)">
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 3L5 8l5 5"/></svg>
+        </button>
+        <span class="count" aria-live="polite"><span class="current">1</span><span class="sep">/</span><span class="total">1</span></span>
+        <button class="btn next" type="button" aria-label="Next slide" title="Next (→)">
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 3l5 5-5 5"/></svg>
+        </button>
+        <span class="divider"></span>
+        <button class="btn reset" type="button" aria-label="Reset to first slide" title="Reset (R)">Reset<span class="kbd">R</span></button>
+      `;
+
+      overlay.querySelector('.prev').addEventListener('click', () => this._go(this._index - 1, 'click'));
+      overlay.querySelector('.next').addEventListener('click', () => this._go(this._index + 1, 'click'));
+      overlay.querySelector('.reset').addEventListener('click', () => this._go(0, 'click'));
+
+      this._root.append(style, stage, tapzones, overlay);
+      this._canvas = canvas;
+      this._slot = slot;
+      this._overlay = overlay;
+      this._countEl = overlay.querySelector('.current');
+      this._totalEl = overlay.querySelector('.total');
+    }
+
+    /** @page must live in the document stylesheet — it's a no-op inside
+     *  shadow DOM. Inject/update a single <head> style tag so the print
+     *  sheet matches the design size and Save-as-PDF yields one slide per
+     *  page with no margins. */
+    _syncPrintPageRule() {
+      const id = 'deck-stage-print-page';
+      let tag = document.getElementById(id);
+      if (!tag) {
+        tag = document.createElement('style');
+        tag.id = id;
+        document.head.appendChild(tag);
+      }
+      tag.textContent =
+        '@page { size: ' + this.designWidth + 'px ' + this.designHeight + 'px; margin: 0; } ' +
+        '@media print { html, body { margin: 0 !important; padding: 0 !important; background: none !important; overflow: visible !important; height: auto !important; } ' +
+        '* { -webkit-print-color-adjust: exact; print-color-adjust: exact; } }';
+    }
+
+    _onSlotChange() {
+      this._collectSlides();
+      this._restoreIndex();
+      this._applyIndex({ showOverlay: false, broadcast: true, reason: 'init' });
+      this._fit();
+    }
+
+    _collectSlides() {
+      const assigned = this._slot.assignedElements({ flatten: true });
+      this._slides = assigned.filter((el) => {
+        // Skip template/style/script nodes even if someone slots them.
+        const tag = el.tagName;
+        return tag !== 'TEMPLATE' && tag !== 'SCRIPT' && tag !== 'STYLE';
+      });
+
+      this._slides.forEach((slide, i) => {
+        const n = i + 1;
+        // Determine a label for comment flow: prefer explicit data-label,
+        // then an existing data-screen-label, then first heading, else "Slide".
+        let label = slide.getAttribute('data-label');
+        if (!label) {
+          const existing = slide.getAttribute('data-screen-label');
+          if (existing) {
+            // Strip any leading number the author may have included.
+            label = existing.replace(/^\s*\d+\s*/, '').trim() || existing;
+          }
+        }
+        if (!label) {
+          const h = slide.querySelector('h1, h2, h3, [data-title]');
+          if (h) label = (h.textContent || '').trim().slice(0, 40);
+        }
+        if (!label) label = 'Slide';
+        slide.setAttribute('data-screen-label', `${pad2(n)} ${label}`);
+
+        // Validation attribute for comment flow / auto-checks.
+        if (!slide.hasAttribute('data-om-validate')) {
+          slide.setAttribute('data-om-validate', VALIDATE_ATTR);
+        }
+
+        slide.setAttribute('data-deck-slide', String(i));
+      });
+
+      if (this._totalEl) this._totalEl.textContent = String(this._slides.length || 1);
+      if (this._index >= this._slides.length) this._index = Math.max(0, this._slides.length - 1);
+    }
+
+    _loadNotes() {
+      const tag = document.getElementById('speaker-notes');
+      if (!tag) { this._notes = []; return; }
+      try {
+        const parsed = JSON.parse(tag.textContent || '[]');
+        if (Array.isArray(parsed)) this._notes = parsed;
+      } catch (e) {
+        console.warn('[deck-stage] Failed to parse #speaker-notes JSON:', e);
+        this._notes = [];
+      }
+    }
+
+    _restoreIndex() {
+      try {
+        const raw = localStorage.getItem(this._storageKey);
+        if (raw != null) {
+          const n = parseInt(raw, 10);
+          if (Number.isFinite(n) && n >= 0 && n < this._slides.length) {
+            this._index = n;
+          }
+        }
+      } catch (e) { /* ignore */ }
+    }
+
+    _persistIndex() {
+      try { localStorage.setItem(this._storageKey, String(this._index)); }
+      catch (e) { /* ignore */ }
+    }
+
+    _applyIndex({ showOverlay = true, broadcast = true, reason = 'init' } = {}) {
+      if (!this._slides.length) return;
+      const prev = this._prevIndex == null ? -1 : this._prevIndex;
+      const curr = this._index;
+      this._slides.forEach((s, i) => {
+        if (i === curr) s.setAttribute('data-deck-active', '');
+        else s.removeAttribute('data-deck-active');
+      });
+      if (this._countEl) this._countEl.textContent = String(curr + 1);
+      this._persistIndex();
+
+      if (broadcast) {
+        // (1) Legacy: host-window postMessage for speaker-notes renderers.
+        try { window.postMessage({ slideIndexChanged: curr }, '*'); } catch (e) {}
+
+        // (2) In-page CustomEvent on the <deck-stage> element itself.
+        //     Bubbles and composes out of shadow DOM so slide code can listen:
+        //       document.querySelector('deck-stage').addEventListener('slidechange', e => {
+        //         e.detail.index, e.detail.previousIndex, e.detail.total, e.detail.slide, e.detail.reason
+        //       });
+        const detail = {
+          index: curr,
+          previousIndex: prev,
+          total: this._slides.length,
+          slide: this._slides[curr] || null,
+          previousSlide: prev >= 0 ? (this._slides[prev] || null) : null,
+          reason: reason, // 'init' | 'keyboard' | 'click' | 'tap' | 'api'
+        };
+        this.dispatchEvent(new CustomEvent('slidechange', {
+          detail,
+          bubbles: true,
+          composed: true,
+        }));
+      }
+
+      this._prevIndex = curr;
+      if (showOverlay) this._flashOverlay();
+    }
+
+    _flashOverlay() {
+      if (!this._overlay) return;
+      this._overlay.setAttribute('data-visible', '');
+      if (this._hideTimer) clearTimeout(this._hideTimer);
+      this._hideTimer = setTimeout(() => {
+        this._overlay.removeAttribute('data-visible');
+      }, OVERLAY_HIDE_MS);
+    }
+
+    _fit() {
+      if (!this._canvas) return;
+      // PPTX export sets noscale so the DOM capture sees authored-size
+      // geometry — the scaled canvas is in shadow DOM, so the exporter's
+      // resetTransformSelector can't reach .canvas.style.transform directly.
+      if (this.hasAttribute('noscale')) {
+        this._canvas.style.transform = 'none';
+        return;
+      }
+      const vw = window.innerWidth;
+      const vh = window.innerHeight;
+      const s = Math.min(vw / this.designWidth, vh / this.designHeight);
+      this._canvas.style.transform = `scale(${s})`;
+    }
+
+    _onResize() { this._fit(); }
+
+    _onMouseMove() {
+      // Keep overlay visible while mouse moves; hide after idle.
+      this._flashOverlay();
+    }
+
+    _onTapBack(e) {
+      e.preventDefault();
+      this._go(this._index - 1, 'tap');
+    }
+
+    _onTapForward(e) {
+      e.preventDefault();
+      this._go(this._index + 1, 'tap');
+    }
+
+    _onKey(e) {
+      // Ignore when the user is typing.
+      const t = e.target;
+      if (t && (t.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName))) return;
+      if (e.metaKey || e.ctrlKey || e.altKey) return;
+
+      const key = e.key;
+      let handled = true;
+
+      if (key === 'ArrowRight' || key === 'PageDown' || key === ' ' || key === 'Spacebar') {
+        this._go(this._index + 1, 'keyboard');
+      } else if (key === 'ArrowLeft' || key === 'PageUp') {
+        this._go(this._index - 1, 'keyboard');
+      } else if (key === 'Home') {
+        this._go(0, 'keyboard');
+      } else if (key === 'End') {
+        this._go(this._slides.length - 1, 'keyboard');
+      } else if (key === 'r' || key === 'R') {
+        this._go(0, 'keyboard');
+      } else if (/^[0-9]$/.test(key)) {
+        // 1..9 jump to that slide; 0 jumps to 10.
+        const n = key === '0' ? 9 : parseInt(key, 10) - 1;
+        if (n < this._slides.length) this._go(n, 'keyboard');
+      } else {
+        handled = false;
+      }
+
+      if (handled) {
+        e.preventDefault();
+        this._flashOverlay();
+      }
+    }
+
+    _go(i, reason = 'api') {
+      if (!this._slides.length) return;
+      const clamped = Math.max(0, Math.min(this._slides.length - 1, i));
+      if (clamped === this._index) {
+        this._flashOverlay();
+        return;
+      }
+      this._index = clamped;
+      this._applyIndex({ showOverlay: true, broadcast: true, reason });
+    }
+
+    // Public API ------------------------------------------------------------
+
+    /** Current slide index (0-based). */
+    get index() { return this._index; }
+    /** Total slide count. */
+    get length() { return this._slides.length; }
+    /** Programmatically navigate. */
+    goTo(i) { this._go(i, 'api'); }
+    next() { this._go(this._index + 1, 'api'); }
+    prev() { this._go(this._index - 1, 'api'); }
+    reset() { this._go(0, 'api'); }
+  }
+
+  if (!customElements.get('deck-stage')) {
+    customElements.define('deck-stage', DeckStage);
+  }
+})();
+
+</script>
+<style>
+  :root {
+    --coral: #D4A574;
+    --coral-deep: #C17E5A;
+    --coral-soft: #E8C9A8;
+    --cream: #F5F0EB;
+    --cream-deep: #EBE3D9;
+    --ink: #1A1A1A;
+    --ink-soft: #2A2A2A;
+    --gray-1: #8B8680;
+    --gray-2: #B8B2AA;
+    --gray-3: #D8D2CA;
+    --line: #1A1A1A;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    font-family: "Noto Sans TC", "Inter", -apple-system, sans-serif;
+    font-weight: 400;
+    color: var(--ink);
+    background: #000;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+
+  section.slide {
+    background: var(--cream);
+    color: var(--ink);
+    padding: 88px 120px;
+    font-size: 22px;
+    line-height: 1.55;
+    overflow: hidden;
+    position: relative;
+  }
+  section.slide.dark {
+    background: var(--ink);
+    color: var(--cream);
+  }
+
+  /* Shared chrome: page number + brand mark */
+  .chrome {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    z-index: 1;
+  }
+  .chrome .tl {
+    position: absolute; top: 56px; left: 120px;
+    font-family: "JetBrains Mono", monospace;
+    font-size: 12px; letter-spacing: 0.14em;
+    color: var(--gray-1);
+    text-transform: uppercase;
+  }
+  section.slide.dark .chrome .tl { color: var(--gray-2); }
+  .chrome .tr {
+    position: absolute; top: 56px; right: 120px;
+    font-family: "JetBrains Mono", monospace;
+    font-size: 12px; letter-spacing: 0.14em;
+    color: var(--gray-1);
+    display: flex; gap: 10px; align-items: center;
+  }
+  section.slide.dark .chrome .tr { color: var(--gray-2); }
+  .chrome .tr .dot { width: 5px; height: 5px; background: var(--coral); border-radius: 50%; display: inline-block; }
+  .chrome .bl {
+    position: absolute; bottom: 56px; left: 120px;
+    font-family: "JetBrains Mono", monospace;
+    font-size: 11px; letter-spacing: 0.18em;
+    color: var(--gray-1);
+    text-transform: uppercase;
+  }
+  section.slide.dark .chrome .bl { color: var(--gray-2); }
+  .chrome .br {
+    position: absolute; bottom: 56px; right: 120px;
+    font-family: "JetBrains Mono", monospace;
+    font-size: 11px; letter-spacing: 0.18em;
+    color: var(--gray-1);
+  }
+  section.slide.dark .chrome .br { color: var(--gray-2); }
+
+  /* Geometric decoration (subtle) */
+  .geo-circle {
+    position: absolute; border-radius: 50%; border: 1px solid currentColor;
+    opacity: 0.12;
+  }
+  .geo-line {
+    position: absolute; background: currentColor; opacity: 0.18;
+  }
+
+  h1, h2, h3, h4 { margin: 0; font-weight: 700; }
+
+  /* Typography scale */
+  .eyebrow {
+    font-family: "JetBrains Mono", monospace;
+    font-size: 13px;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: var(--coral-deep);
+    font-weight: 500;
+  }
+  section.slide.dark .eyebrow { color: var(--coral); }
+
+  .display {
+    font-family: "Noto Sans TC", "Inter", sans-serif;
+    font-weight: 900;
+    font-size: 148px;
+    line-height: 0.96;
+    letter-spacing: -0.02em;
+  }
+  .title-xl {
+    font-family: "Noto Sans TC", "Inter", sans-serif;
+    font-weight: 800;
+    font-size: 92px;
+    line-height: 1.02;
+    letter-spacing: -0.015em;
+  }
+  .title-l {
+    font-family: "Noto Sans TC", "Inter", sans-serif;
+    font-weight: 700;
+    font-size: 64px;
+    line-height: 1.08;
+    letter-spacing: -0.01em;
+  }
+  .title-m {
+    font-family: "Noto Sans TC", "Inter", sans-serif;
+    font-weight: 700;
+    font-size: 40px;
+    line-height: 1.2;
+  }
+  .subtitle {
+    font-family: "Noto Sans TC", "Inter", sans-serif;
+    font-weight: 400;
+    font-size: 28px;
+    line-height: 1.4;
+    color: var(--ink-soft);
+  }
+  section.slide.dark .subtitle { color: var(--gray-2); }
+  .body {
+    font-family: "Noto Sans TC", "Inter", sans-serif;
+    font-weight: 400;
+    font-size: 22px;
+    line-height: 1.6;
+  }
+  .small {
+    font-size: 18px; line-height: 1.5; color: var(--gray-1);
+  }
+  .mono {
+    font-family: "JetBrains Mono", monospace;
+  }
+
+  /* Section header row: slide number + title */
+  .section-head {
+    display: flex; align-items: baseline; gap: 28px;
+    margin-bottom: 48px;
+  }
+  .section-head .num {
+    font-family: "JetBrains Mono", monospace;
+    font-size: 14px;
+    letter-spacing: 0.2em;
+    color: var(--coral-deep);
+    font-weight: 500;
+  }
+  section.slide.dark .section-head .num { color: var(--coral); }
+  .section-head .rule {
+    flex: 1; height: 1px; background: var(--ink); opacity: 0.15;
+  }
+  section.slide.dark .section-head .rule { background: var(--cream); opacity: 0.2; }
+
+  /* Horizontal hairline divider */
+  .hairline { height: 1px; background: var(--ink); opacity: 0.12; }
+  section.slide.dark .hairline { background: var(--cream); opacity: 0.18; }
+
+  /* Coral accent dot */
+  .dot { width: 8px; height: 8px; background: var(--coral-deep); border-radius: 50%; display: inline-block; }
+
+  /* Callout box */
+  .callout {
+    border-left: 2px solid var(--coral-deep);
+    padding: 4px 0 4px 24px;
+    font-size: 22px;
+    color: var(--ink-soft);
+  }
+  section.slide.dark .callout { color: var(--gray-2); }
+
+  /* Card */
+  .card {
+    background: #FFFCF7;
+    border: 1px solid rgba(26,26,26,0.08);
+    border-radius: 4px;
+    padding: 40px;
+    position: relative;
+  }
+  section.slide.dark .card {
+    background: #242321;
+    border: 1px solid rgba(245,240,235,0.08);
+  }
+
+  /* Utility */
+  .flex { display: flex; }
+  .col { display: flex; flex-direction: column; }
+  .grow { flex: 1; }
+  .gap-s { gap: 16px; } .gap-m { gap: 32px; } .gap-l { gap: 56px; }
+  .mt-s { margin-top: 16px; } .mt-m { margin-top: 32px; } .mt-l { margin-top: 56px; } .mt-xl { margin-top: 88px; }
+  .center { display: flex; align-items: center; justify-content: center; }
+
+  /* Numeric label */
+  .numbered-item { display: flex; gap: 20px; align-items: flex-start; padding: 18px 0; }
+  .numbered-item + .numbered-item { border-top: 1px solid rgba(26,26,26,0.08); }
+  .numbered-item .n {
+    font-family: "JetBrains Mono", monospace;
+    font-size: 14px;
+    color: var(--coral-deep);
+    letter-spacing: 0.14em;
+    padding-top: 4px;
+    min-width: 42px;
+  }
+
+  /* Metric / stat */
+  .stat .num {
+    font-family: "Inter", sans-serif;
+    font-weight: 700;
+    font-size: 88px;
+    line-height: 1;
+    letter-spacing: -0.02em;
+    color: var(--ink);
+  }
+  section.slide.dark .stat .num { color: var(--cream); }
+  .stat .num .accent { color: var(--coral-deep); }
+  section.slide.dark .stat .num .accent { color: var(--coral); }
+  .stat .label {
+    font-size: 18px; color: var(--gray-1); margin-top: 12px;
+    line-height: 1.45;
+  }
+
+  /* Bullet */
+  .bullet-row { display: flex; gap: 16px; padding: 10px 0; align-items: flex-start; }
+  .bullet-row::before {
+    content: ""; display: block; width: 6px; height: 6px;
+    background: var(--coral-deep); margin-top: 14px; flex-shrink: 0;
+  }
+
+  /* line icons */
+  .icn {
+    width: 40px; height: 40px; display: inline-block;
+    stroke: var(--coral-deep); stroke-width: 1.4; fill: none;
+    stroke-linecap: round; stroke-linejoin: round;
+  }
+  section.slide.dark .icn { stroke: var(--coral); }
+
+  /* Cover-specific */
+  .cover-halo {
+    position: absolute;
+    width: 1200px; height: 1200px;
+    border-radius: 50%;
+    right: -380px; top: -280px;
+    background: radial-gradient(circle at 40% 40%, rgba(212,165,116,0.35) 0%, rgba(193,126,90,0.12) 38%, transparent 65%);
+    filter: blur(10px);
+  }
+  .cover-halo-2 {
+    position: absolute;
+    width: 640px; height: 640px;
+    border-radius: 50%;
+    right: 180px; top: 240px;
+    background: radial-gradient(circle, rgba(232,201,168,0.25) 0%, transparent 60%);
+  }
+  .cover-rings {
+    position: absolute; right: 80px; top: 140px;
+    width: 780px; height: 780px;
+    opacity: 0.5;
+  }
+
+  /* Specific: session timeline */
+  .timeline { display: flex; align-items: center; gap: 0; margin-top: 20px; }
+  .session-node {
+    flex: 1; position: relative; padding: 28px;
+    border: 1px solid rgba(26,26,26,0.12);
+    background: #FFFCF7;
+    border-radius: 4px;
+  }
+  .session-node.active {
+    border-color: var(--coral-deep);
+    background: #FFF8F1;
+  }
+  .timeline-arrow {
+    width: 80px; display: flex; justify-content: center;
+    color: var(--coral-deep);
+  }
+
+  /* Quotes */
+  .quote-card {
+    background: #FFFCF7;
+    border-left: 3px solid var(--coral-deep);
+    padding: 32px 36px;
+    border-radius: 0 4px 4px 0;
+  }
+  .quote-card .q-text {
+    font-size: 22px; line-height: 1.55;
+    color: var(--ink-soft);
+    font-weight: 400;
+  }
+  .quote-card .q-attr {
+    margin-top: 20px;
+    font-size: 15px; color: var(--gray-1);
+    letter-spacing: 0.03em;
+  }
+  .quote-card .q-mark {
+    font-family: "Inter", serif;
+    font-weight: 700;
+    color: var(--coral-deep);
+    font-size: 32px;
+    line-height: 0;
+    position: relative; top: 12px;
+    margin-right: 4px;
+  }
+
+  /* Effort scale visual */
+  .effort-bar {
+    display: flex; gap: 4px; height: 10px;
+    margin: 24px 0;
+  }
+  .effort-bar div {
+    flex: 1; background: var(--gray-3); border-radius: 2px;
+  }
+  .effort-bar div.on { background: var(--coral-deep); }
+  .effort-bar div.new { background: var(--coral); }
+
+  /* Price strip */
+  .price-strip {
+    display: flex; gap: 48px; padding: 28px 36px;
+    background: var(--ink); color: var(--cream);
+    border-radius: 4px;
+    align-items: center;
+  }
+  .price-strip .tag {
+    font-family: "JetBrains Mono", monospace;
+    font-size: 12px; letter-spacing: 0.2em;
+    color: var(--coral);
+  }
+  .price-strip .val {
+    font-family: "Inter", sans-serif;
+    font-weight: 600;
+    font-size: 28px;
+  }
+  .price-strip .val .unit {
+    color: var(--gray-2); font-weight: 400; font-size: 16px; margin-left: 4px; white-space: nowrap;
+  }
+  .price-strip .val { white-space: nowrap; }
+
+  /* Placeholder image */
+  .placeholder {
+    background:
+      repeating-linear-gradient(135deg,
+        rgba(26,26,26,0.04) 0px, rgba(26,26,26,0.04) 8px,
+        transparent 8px, transparent 16px),
+      var(--cream-deep);
+    border: 1px solid rgba(26,26,26,0.1);
+    display: flex; align-items: center; justify-content: center;
+    color: var(--gray-1);
+    font-family: "JetBrains Mono", monospace;
+    font-size: 12px; letter-spacing: 0.14em;
+    text-transform: uppercase;
+  }
+
+  /* ========================================================================
+     AI Flow Sprint Briefing — comfortable density overrides
+     提升文字可讀性、讓每張 slide 的內容在 1920×1080 撐得更開
+     ======================================================================== */
+  section.slide { padding: 96px 140px; }
+  .section-head { margin-bottom: 64px; gap: 32px; }
+  .section-head .num { font-size: 16px; }
+  .title-l { font-size: 76px; line-height: 1.05; }
+  .title-m { font-size: 44px; }
+  .subtitle { font-size: 30px; }
+  .body { font-size: 24px; line-height: 1.65; }
+  .small { font-size: 19px; line-height: 1.55; }
+  .eyebrow { font-size: 14px; }
+  .callout { font-size: 25px; padding: 8px 0 8px 28px; border-left-width: 3px; }
+  .card { padding: 48px; }
+  .numbered-item { padding: 24px 0; gap: 28px; }
+  .numbered-item .n { font-size: 15px; min-width: 100px; }
+  .bullet-row { padding: 14px 0; gap: 20px; }
+  .bullet-row::before { width: 7px; height: 7px; margin-top: 16px; }
+  .quote-card { padding: 40px 44px; border-left-width: 4px; }
+  .quote-card .q-text { font-size: 26px; line-height: 1.6; }
+  .quote-card .q-mark { font-size: 40px; top: 16px; margin-right: 8px; }
+
+  /* 讓 content 區域垂直撐滿 — 每張 slide 的主要內容 wrapper 若沒特殊 layout
+     會自動享受到這個 padding 分佈（chrome 絕對定位不受影響） */
+  section.slide > .section-head:first-of-type { margin-top: 12px; }
+
+  /* Cover / CTA slide 特殊 — 內部已有 flex 定位，維持原樣但略放大 display */
+  .display { font-size: 168px; }
+
+  /* Table-like grid 內 body 文字拉大一級 */
+  section.slide .body[style*="font-weight: 600"] { font-size: 25px; }
+</style>
+</head>
+<body>
+
+<deck-stage width="1920" height="1080">
+
+  <!-- ═══════════════ Slide 01 | Cover ═══════════════ -->
+  <section class="slide dark" data-label="Cover">
+    <div class="cover-halo"></div>
+    <div class="cover-halo-2"></div>
+    <svg class="cover-rings" viewBox="0 0 780 780" fill="none">
+      <circle cx="390" cy="390" r="389" stroke="#D4A574" stroke-opacity="0.18"/>
+      <circle cx="390" cy="390" r="300" stroke="#D4A574" stroke-opacity="0.14"/>
+      <circle cx="390" cy="390" r="210" stroke="#D4A574" stroke-opacity="0.1"/>
+      <circle cx="390" cy="390" r="120" stroke="#D4A574" stroke-opacity="0.08"/>
+      <circle cx="390" cy="390" r="6" fill="#D4A574"/>
+    </svg>
+
+    <div class="chrome">
+      <div class="tl">EWILL · 內部 WORKSHOP</div>
+      <div class="tr"><span class="dot"></span>說明會 · 2026</div>
+      <div class="bl">01 / 16</div>
+      <div class="br">AI FLOW SPRINT · BRIEFING</div>
+    </div>
+
+    <div style="position: relative; z-index: 2; height: 100%; display: flex; flex-direction: column; justify-content: center; max-width: 1400px;">
+      <div class="eyebrow" style="margin-bottom: 40px;">2.5 天 × 9 人 × 3 組</div>
+      <div class="display" style="color: var(--cream);">
+        AI Flow Sprint<br>
+        <span style="color: var(--coral);">說明會</span>
+      </div>
+      <div style="height: 48px;"></div>
+      <div class="subtitle" style="color: var(--gray-2); max-width: 900px;">
+        40 分鐘達成規則共識、抓漏洞、發放 Pre-form，開工前最後一哩路
+      </div>
+      <div style="margin-top: 88px; display: flex; gap: 64px; align-items: baseline;">
+        <div>
+          <div class="mono" style="font-size: 11px; letter-spacing: 0.2em; color: var(--gray-1);">DATE</div>
+          <div class="mono" style="font-size: 18px; color: var(--cream); margin-top: 8px;">2026.04.21</div>
+        </div>
+        <div style="width: 1px; height: 40px; background: rgba(245,240,235,0.2);"></div>
+        <div>
+          <div class="mono" style="font-size: 11px; letter-spacing: 0.2em; color: var(--gray-1);">TIME</div>
+          <div class="mono" style="font-size: 18px; color: var(--cream); margin-top: 8px;">10:00 — 10:40</div>
+        </div>
+        <div style="width: 1px; height: 40px; background: rgba(245,240,235,0.2);"></div>
+        <div>
+          <div class="mono" style="font-size: 11px; letter-spacing: 0.2em; color: var(--gray-1);">HOST</div>
+          <div class="mono" style="font-size: 18px; color: var(--coral); margin-top: 8px;">Eric</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════════════ Slide 02 | 全程時程總覽 ═══════════════ -->
+  <section class="slide" data-label="全程時程">
+    <div class="chrome">
+      <div class="tl">01 · 全程時程</div>
+      <div class="tr">7-DAY OVERVIEW</div>
+      <div class="bl">02 / 16</div>
+      <div class="br">04-21 → 04-27</div>
+    </div>
+
+    <div class="section-head">
+      <div class="num">01</div>
+      <div class="title-l">全程時程</div>
+      <div class="rule"></div>
+    </div>
+
+    <style>
+      .tl-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 20px; align-items: start; margin-top: 48px; }
+      .tl-col { display: flex; flex-direction: column; gap: 12px; }
+      .tl-head { background: #C15F3C; color: #fff; padding: 14px 12px; border-radius: 8px; text-align: center; font-weight: 700; font-size: 20px; }
+      .tl-ev { background: #DA7756; color: #fff; padding: 12px 14px; border-radius: 8px; font-size: 18px; line-height: 1.5; }
+    </style>
+
+    <div class="tl-grid">
+      <div class="tl-col">
+        <div class="tl-head">週二 04-21</div>
+        <div class="tl-ev">08：00 規則預讀</div>
+        <div class="tl-ev">09：00–10：00 Slack 非同步提問收集</div>
+        <div class="tl-ev">10：00–10：40 說明會 40 min</div>
+        <div class="tl-ev">10：40 規則凍結定版</div>
+        <div class="tl-ev">10：40 Pre-form 發放</div>
+        <div class="tl-ev">23：59 Pre-form 截止</div>
+      </div>
+
+      <div class="tl-col">
+        <div class="tl-head">週三 04-22</div>
+        <div class="tl-ev">08：30 規則最終公告</div>
+        <div class="tl-ev">08：30 Pre-form 繳交確認</div>
+        <div class="tl-ev">09：00 Sprint Day 1 開工</div>
+      </div>
+
+      <div class="tl-col">
+        <div class="tl-head">週四 04-23</div>
+        <div class="tl-ev">全天 Sprint Day 2</div>
+      </div>
+
+      <div class="tl-col">
+        <div class="tl-head">週五 04-24</div>
+        <div class="tl-ev">上午 Sprint Day 3 實作</div>
+        <div class="tl-ev">14：00–17：00 發表 3 組 × 45min + 休息 + 總結</div>
+        <div class="tl-ev">當晚 Post-form 發放</div>
+      </div>
+
+      <div class="tl-col">
+        <div class="tl-head">下週一 04-27</div>
+        <div class="tl-ev">12：00 Post-form 截止</div>
+        <div class="tl-ev">14：00+ 原始資料彙整</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════════════ Slide 03 | 這不是比賽 ═══════════════ -->
+  <section class="slide" data-label="這不是比賽">
+    <div class="chrome">
+      <div class="tl">02 · 開場與定位</div>
+      <div class="tr">WHY WE'RE HERE</div>
+      <div class="bl">03 / 16</div>
+      <div class="br">認知收集 · 不是比賽</div>
+    </div>
+
+    <div class="section-head">
+      <div class="num">02</div>
+      <div class="title-l">這不是比賽</div>
+      <div class="rule"></div>
+    </div>
+
+    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 80px; margin-top: 56px;">
+      <div>
+        <div class="eyebrow" style="margin-bottom: 20px;">WHAT WE REMOVED</div>
+        <div class="bullet-row"><div class="body">移除評分機制</div></div>
+        <div class="bullet-row"><div class="body">無排名、無最佳組</div></div>
+        <div class="bullet-row"><div class="body">主辦方不評審</div></div>
+      </div>
+      <div>
+        <div class="eyebrow" style="margin-bottom: 20px;">WHAT WE WANT</div>
+        <div class="bullet-row"><div class="body">每人親自跑過一次 AI 輔助開發流程</div></div>
+        <div class="bullet-row"><div class="body">看到 AI 在不同環節的實際作用與限制</div></div>
+        <div class="bullet-row"><div class="body">透過實作發現流程中的卡點，而非抽象討論</div></div>
+        <div class="bullet-row"><div class="body">收集團隊對「專案管理系統」的認知變化</div></div>
+      </div>
+    </div>
+
+    <div class="quote-card" style="margin-top: 72px;">
+      <div class="q-text"><span class="q-mark">"</span>我們要收集的是團隊對「專案管理系統」的認知變化，不是比較誰做的功能多。</div>
+    </div>
+  </section>
+
+  <!-- ═══════════════ Slide 03 | 任務與組別 ═══════════════ -->
+  <section class="slide" data-label="任務與組別">
+    <div class="chrome">
+      <div class="tl">03 · 規則重點</div>
+      <div class="tr">TASK &amp; TEAM</div>
+      <div class="bl">04 / 16</div>
+      <div class="br">專案管理系統原型 · 3 人混編</div>
+    </div>
+
+    <div class="section-head">
+      <div class="num">03</div>
+      <div class="title-l">任務與組別</div>
+      <div class="rule"></div>
+    </div>
+
+    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 72px; margin-top: 40px;">
+      <div>
+        <div class="eyebrow" style="margin-bottom: 20px;">任務</div>
+        <div class="title-m" style="margin-bottom: 20px;">專案管理系統原型</div>
+        <div class="body">2.5 天用 AI 工具做一個原型，支援團隊日常的專案追蹤、任務管理、進度掌握。</div>
+
+        <div class="callout" style="margin-top: 36px;">
+          <strong>需求刻意留白</strong> — 各組自己定義系統邊界。我們想看的是當需求不完整時，團隊怎麼透過討論、文件與 AI 協作釐清問題、做出取捨。
+        </div>
+      </div>
+
+      <div>
+        <div class="numbered-item" style="padding-top: 0;">
+          <div class="n">規模</div>
+          <div><div class="body" style="font-weight: 600;">3 人一組，最多 2 位工程師</div></div>
+        </div>
+        <div class="numbered-item">
+          <div class="n">分組</div>
+          <div><div class="body" style="font-weight: 600;">打散原有職能，重新混編</div></div>
+        </div>
+        <div class="numbered-item">
+          <div class="n">期間</div>
+          <div><div class="body" style="font-weight: 600;">實作 2.5 天 + 發表半天</div></div>
+        </div>
+        <div class="numbered-item">
+          <div class="n">諮詢</div>
+          <div><div class="body" style="font-weight: 600;">主辦方零介入，自行用 AI 與文件釐清</div></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════════════ Slide 04 | 兩件強制交件 ═══════════════ -->
+  <section class="slide" data-label="兩件強制交件">
+    <div class="chrome">
+      <div class="tl">03 · 規則重點</div>
+      <div class="tr">TWO REQUIRED DELIVERABLES</div>
+      <div class="bl">05 / 16</div>
+      <div class="br">SPEC + 1 頁定義</div>
+    </div>
+
+    <div class="section-head">
+      <div class="num">04</div>
+      <div class="title-l">兩件強制交件</div>
+      <div class="rule"></div>
+    </div>
+
+    <div class="body" style="margin-top: 32px; max-width: 1200px;">
+      Sprint 2.5 天裡，其他產出形式隨各組自訂；<strong>這兩件必須交</strong>，是 workshop 後認知收集的原始資料來源。
+    </div>
+
+    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 48px; margin-top: 56px;">
+      <div class="card" style="display: flex; flex-direction: column;">
+        <div class="eyebrow">交件 1</div>
+        <div class="title-m" style="font-size: 40px; margin-top: 12px;">Spec · PRD-lite 7 項</div>
+        <div class="small mt-m">寫 code 前必須先交。設計讓非工程師也能參與撰寫，同時給工程師足夠實作依據。可隨 Sprint 迭代補齊。</div>
+        <div style="margin-top: auto;">
+          <div class="hairline" style="margin: 28px 0;"></div>
+          <div class="mono" style="font-size: 13px; color: var(--coral-deep); letter-spacing: 0.18em;">DEADLINE</div>
+          <div class="title-m" style="font-size: 28px; margin-top: 8px;">週五 12:00 前(成果發表前)</div>
+        </div>
+      </div>
+      <div class="card" style="display: flex; flex-direction: column;">
+        <div class="eyebrow">交件 2</div>
+        <div class="title-m" style="font-size: 40px; margin-top: 12px;">簡報 1 頁定義</div>
+        <div class="small mt-m">嵌在 Stage 1 簡報內，不獨立交檔。包含範疇 / 放棄項 / 聚焦問題三區塊。</div>
+        <div style="margin-top: auto;">
+          <div class="hairline" style="margin: 28px 0;"></div>
+          <div class="mono" style="font-size: 13px; color: var(--coral-deep); letter-spacing: 0.18em;">DEADLINE</div>
+          <div class="title-m" style="font-size: 28px; margin-top: 8px;">週五 12:00 前(成果發表前)</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════════════ Slide 05 | 交件 1 Spec PRD-lite 7 項 ═══════════════ -->
+  <section class="slide" data-label="Spec PRD-lite 7 項">
+    <div class="chrome">
+      <div class="tl">03 · 規則重點</div>
+      <div class="tr">DELIVERABLE 1 · SPEC</div>
+      <div class="bl">06 / 16</div>
+      <div class="br">PRD-LITE 7 項結構</div>
+    </div>
+
+    <div class="section-head">
+      <div class="num">05</div>
+      <div class="title-l">交件 1：Spec · PRD-lite 7 項</div>
+      <div class="rule"></div>
+    </div>
+
+    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px 56px; margin-top: 40px;">
+      <div class="numbered-item">
+        <div class="n">01</div>
+        <div>
+          <div class="title-m" style="font-size: 26px;">問題 Why</div>
+          <div class="small">要解決什麼？為什麼需要？</div>
+        </div>
+      </div>
+      <div class="numbered-item">
+        <div class="n">02</div>
+        <div>
+          <div class="title-m" style="font-size: 26px;">目標 Goals</div>
+          <div class="small">做完後要達到什麼？</div>
+        </div>
+      </div>
+      <div class="numbered-item">
+        <div class="n">03</div>
+        <div>
+          <div class="title-m" style="font-size: 26px;">使用者與場景 Who &amp; When</div>
+          <div class="small">誰會用？在什麼情境下用？</div>
+        </div>
+      </div>
+      <div class="numbered-item">
+        <div class="n">04</div>
+        <div>
+          <div class="title-m" style="font-size: 26px;">範疇 In Scope</div>
+          <div class="small">要做哪些功能？</div>
+        </div>
+      </div>
+      <div class="numbered-item">
+        <div class="n">05</div>
+        <div>
+          <div class="title-m" style="font-size: 26px;">放棄項 Out of Scope</div>
+          <div class="small">主動不做什麼？為什麼？</div>
+        </div>
+      </div>
+      <div class="numbered-item">
+        <div class="n">06</div>
+        <div>
+          <div class="title-m" style="font-size: 26px;">核心流程 Core Flow</div>
+          <div class="small">主要操作路徑</div>
+        </div>
+      </div>
+      <div class="numbered-item">
+        <div class="n">07</div>
+        <div>
+          <div class="title-m" style="font-size: 26px;">驗收標準 Done Criteria</div>
+          <div class="small">怎麼知道做對了？</div>
+        </div>
+      </div>
+      <div class="numbered-item">
+        <div class="n"></div>
+        <div>
+          <div class="eyebrow" style="margin-bottom: 8px;">角色分工</div>
+          <div class="small">由各組<strong>自行分配</strong>（上面僅為建議起點）</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="price-strip" style="margin-top: 40px;">
+      <div style="flex: 1.1;">
+        <div class="tag">DEADLINE</div>
+        <div class="val" style="font-size: 22px;">週五 2026-04-24 · 12:00 前</div>
+      </div>
+      <div style="width: 1px; height: 48px; background: rgba(245,240,235,0.2);"></div>
+      <div style="flex: 0.7;">
+        <div class="tag">FORMAT</div>
+        <div class="val" style="font-size: 22px;">Markdown</div>
+      </div>
+      <div style="width: 1px; height: 48px; background: rgba(245,240,235,0.2);"></div>
+      <div style="flex: 1.2;">
+        <div class="tag">LOCATION</div>
+        <div class="val" style="font-size: 22px;"><a href="https://drive.google.com/drive/folders/1BLMI8CjGqsFApSR3KNvix9dXqhjSpWEa?usp=drive_link" style="color: inherit; text-decoration: underline;">Workshop 工作區 / 規格</a></div>
+      </div>
+      <div style="width: 1px; height: 48px; background: rgba(245,240,235,0.2);"></div>
+      <div style="flex: 1;">
+        <div class="tag">TEMPLATE</div>
+        <div class="val" style="font-size: 22px;">Spec-template.md</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════════════ Slide 06 | 交件 2 · 簡報必含 1 頁定義 ═══════════════ -->
+  <section class="slide" data-label="簡報必含 1 頁定義">
+    <div class="chrome">
+      <div class="tl">04 · 發表結構</div>
+      <div class="tr">REQUIRED SLIDE</div>
+      <div class="bl">07 / 16</div>
+      <div class="br">STAGE 1 · 簡報必含</div>
+    </div>
+
+    <div class="section-head">
+      <div class="num">06</div>
+      <div class="title-l">交件 2：簡報必含 1 頁定義</div>
+      <div class="rule"></div>
+    </div>
+
+    <div class="body" style="margin-top: 32px; max-width: 1200px;">
+      Stage 1 簡報中<strong>必須包含</strong> 1 頁：<strong>我們定義的專案管理系統</strong>。
+    </div>
+
+    <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 28px; margin-top: 56px;">
+      <div class="card">
+        <div class="eyebrow">區塊一</div>
+        <div class="title-m" style="font-size: 36px; margin-top: 12px;">範疇</div>
+        <div class="small mt-m">我們這份系統包含哪些功能 / 流程</div>
+      </div>
+      <div class="card">
+        <div class="eyebrow">區塊二</div>
+        <div class="title-m" style="font-size: 36px; margin-top: 12px;">放棄項</div>
+        <div class="small mt-m">我們主動不做什麼，以及為什麼不做</div>
+      </div>
+      <div class="card">
+        <div class="eyebrow">區塊三</div>
+        <div class="title-m" style="font-size: 36px; margin-top: 12px;">聚焦問題</div>
+        <div class="small mt-m">我們認為這個系統要優先解決的問題是什麼</div>
+      </div>
+    </div>
+
+    <div class="callout" style="margin-top: 48px; font-size: 22px;">
+      Spec 第 <strong>4 範疇</strong> + 第 <strong>5 放棄項</strong> + 第 <strong>1 問題</strong> 濃縮 → 即是這 3 區塊。寫完 Spec 後可<strong>直接抽取、不需重工</strong>。
+    </div>
+
+    <div class="quote-card" style="margin-top: 32px;">
+      <div class="q-text"><span class="q-mark">"</span>這 1 頁<strong>嵌在簡報內、不獨立交檔</strong> → 它會是 workshop 後認知收集的關鍵原始資料。</div>
+    </div>
+  </section>
+
+  <!-- ═══════════════ Slide 07 | 發表結構：時長 ═══════════════ -->
+  <section class="slide" data-label="發表結構 時長">
+    <div class="chrome">
+      <div class="tl">04 · 發表結構</div>
+      <div class="tr">TIMING</div>
+      <div class="bl">08 / 16</div>
+      <div class="br">每組 45 分鐘</div>
+    </div>
+
+    <div class="section-head">
+      <div class="num">07</div>
+      <div class="title-l">發表結構 · 時長</div>
+      <div class="rule"></div>
+    </div>
+
+    <div style="display: flex; gap: 48px; align-items: stretch; margin-top: 48px;">
+      <div class="card" style="flex: 1;">
+        <div class="eyebrow" style="margin-bottom: 16px;">STAGE 1</div>
+        <div class="title-m" style="font-size: 52px; font-weight: 800;">30 min</div>
+        <div class="body mt-m">簡報 + Demo<br>每位組員輪流上台</div>
+      </div>
+      <div class="card" style="flex: 1;">
+        <div class="eyebrow" style="margin-bottom: 16px;">STAGE 2</div>
+        <div class="title-m" style="font-size: 52px; font-weight: 800;">15 min</div>
+        <div class="body mt-m">Q&amp;A 交流<br>知識分享非評審</div>
+      </div>
+      <div class="card" style="flex: 1;">
+        <div class="eyebrow" style="margin-bottom: 16px;">組間休息</div>
+        <div class="title-m" style="font-size: 52px; font-weight: 800;">15 min</div>
+        <div class="body mt-m">下一組準備<br>主辦方整理筆記</div>
+      </div>
+    </div>
+
+    <div class="callout" style="margin-top: 72px; font-size: 26px;">
+      <strong>總時程 180 分鐘</strong>：3 × 45 + 2 × 15 + 總結 15 = <strong>週五 14:00 – 17:00</strong>
+    </div>
+  </section>
+
+  <!-- ═══════════════ Slide 08 | Stage 1 · 5 面向發表 ═══════════════ -->
+  <section class="slide" data-label="Stage 1 · 5 面向">
+    <div class="chrome">
+      <div class="tl">04 · 發表結構</div>
+      <div class="tr">STAGE 1 · 5 ASPECTS</div>
+      <div class="bl">09 / 16</div>
+      <div class="br">每位組員上台輪流說</div>
+    </div>
+
+    <div class="section-head">
+      <div class="num">08</div>
+      <div class="title-l">Stage 1 · 5 面向輪流發表</div>
+      <div class="rule"></div>
+    </div>
+
+    <div class="body" style="margin-top: 32px; max-width: 1200px;">
+      Stage 1 除了 Demo + 1 頁定義，每位組員必須<strong>輪流</strong>說明以下 5 個面向（<strong>每人至少 1 個</strong>）。
+    </div>
+
+    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px 72px; margin-top: 48px;">
+      <div class="numbered-item">
+        <div class="n">01</div>
+        <div>
+          <div class="title-m" style="font-size: 28px;">怎麼定義專案管理系統</div>
+          <div class="small">你們把範疇、邊界畫在哪</div>
+        </div>
+      </div>
+      <div class="numbered-item">
+        <div class="n">02</div>
+        <div>
+          <div class="title-m" style="font-size: 28px;">AI 分工</div>
+          <div class="small">哪些工作交給 AI，哪些保留由人判斷</div>
+        </div>
+      </div>
+      <div class="numbered-item">
+        <div class="n">03</div>
+        <div>
+          <div class="title-m" style="font-size: 28px;">最卡的一段</div>
+          <div class="small">過程中哪一段最卡，原因是什麼</div>
+        </div>
+      </div>
+      <div class="numbered-item">
+        <div class="n">04</div>
+        <div>
+          <div class="title-m" style="font-size: 28px;">如果再做一次</div>
+          <div class="small">會調整哪個流程</div>
+        </div>
+      </div>
+      <div class="numbered-item">
+        <div class="n">05</div>
+        <div>
+          <div class="title-m" style="font-size: 28px;">最大的理解改變</div>
+          <div class="small">這次練習後，對 AI 開發流程最大的理解改變是什麼</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════════════ Slide 09 | 上傳時機 ═══════════════ -->
+  <section class="slide" data-label="上傳時機">
+    <div class="chrome">
+      <div class="tl">04 · 發表結構</div>
+      <div class="tr">UPLOAD</div>
+      <div class="bl">10 / 16</div>
+      <div class="br">週五 12:00 前</div>
+    </div>
+
+    <div class="section-head">
+      <div class="num">09</div>
+      <div class="title-l">週五 12:00 前上傳</div>
+      <div class="rule"></div>
+    </div>
+
+    <div style="margin-top: 56px; max-width: 1200px;">
+      <div class="eyebrow" style="margin-bottom: 24px;">HOW</div>
+      <div class="bullet-row"><div class="body">簡報整份上傳至共享資料夾，找你們組的子資料夾</div></div>
+      <div class="bullet-row"><div class="body">格式：Google Slides / Keynote / PPT / PDF 皆可</div></div>
+      <div class="bullet-row"><div class="body">主辦方直接從共享資料夾開啟，組員不用帶任何檔案</div></div>
+    </div>
+
+    <div class="price-strip" style="margin-top: 72px;">
+      <div style="flex: 1;">
+        <div class="tag">DEADLINE</div>
+        <div class="val">週五 2026-04-24 · 12:00</div>
+      </div>
+      <div style="width: 1px; height: 48px; background: rgba(245,240,235,0.2);"></div>
+      <div style="flex: 1.4;">
+        <div class="tag">LOCATION</div>
+        <div class="val"><a href="https://drive.google.com/drive/folders/1heSj6FxGL6YWV923BoNiz0eJG4WPzVRR?usp=drive_link" style="color: inherit; text-decoration: underline;">Workshop 工作區 / 簡報</a></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════════════ Slide 10 | 活動結束後的回收 ═══════════════ -->
+  <section class="slide" data-label="活動結束後的回收">
+    <div class="chrome">
+      <div class="tl">04 · 發表結構</div>
+      <div class="tr">POST-WORKSHOP</div>
+      <div class="bl">11 / 16</div>
+      <div class="br">後問卷 48 hr 回收後</div>
+    </div>
+
+    <div class="section-head">
+      <div class="num">10</div>
+      <div class="title-l">活動結束後的回收</div>
+      <div class="rule"></div>
+    </div>
+
+    <div class="body" style="margin-top: 32px; max-width: 1200px;">
+      這 2.5 天的價值不只在做出什麼，更在於後續能否沉澱成<strong>下一版工作方式</strong>。後問卷 48 hr 回收後會整理這 5 件事。
+    </div>
+
+    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px 72px; margin-top: 40px;">
+      <div class="numbered-item">
+        <div class="n">01</div>
+        <div>
+          <div class="title-m" style="font-size: 28px;">共通的 AI 協作方法</div>
+          <div class="small">各組共通有效的 AI 協作方法</div>
+        </div>
+      </div>
+      <div class="numbered-item">
+        <div class="n">02</div>
+        <div>
+          <div class="title-m" style="font-size: 28px;">反覆的卡點與風險</div>
+          <div class="small">各組反覆遇到的卡點與風險</div>
+        </div>
+      </div>
+      <div class="numbered-item">
+        <div class="n">03</div>
+        <div>
+          <div class="title-m" style="font-size: 28px;">認知變化</div>
+          <div class="small">團隊對「專案管理系統」的認知變化</div>
+        </div>
+      </div>
+      <div class="numbered-item">
+        <div class="n">04</div>
+        <div>
+          <div class="title-m" style="font-size: 28px;">值得變成預設的流程</div>
+          <div class="small">哪些流程值得變成團隊預設做法</div>
+        </div>
+      </div>
+      <div class="numbered-item">
+        <div class="n">05</div>
+        <div>
+          <div class="title-m" style="font-size: 28px;">還缺的支援</div>
+          <div class="small">哪些地方還需補模板、規範或工具支援</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════════════ Slide 11 | Pre/Post Form 對照 ═══════════════ -->
+  <section class="slide" data-label="Pre Post Form 對照">
+    <div class="chrome">
+      <div class="tl">06 · Pre/Post Form</div>
+      <div class="tr">BEFORE &amp; AFTER</div>
+      <div class="bl">12 / 16</div>
+      <div class="br">認知收集</div>
+    </div>
+
+    <div class="section-head">
+      <div class="num">11</div>
+      <div class="title-l">認知收集：前後對照</div>
+      <div class="rule"></div>
+    </div>
+
+    <div class="timeline" style="margin-top: 64px;">
+      <div class="session-node active">
+        <div class="eyebrow">PRE-FORM</div>
+        <div class="title-m" style="font-size: 32px; margin-top: 12px;">Workshop 前</div>
+        <div class="small mt-s">個人觀點<br>7 題 · 約 10 min</div>
+      </div>
+      <div class="timeline-arrow">
+        <svg width="60" height="20" viewBox="0 0 60 20" fill="none"><path d="M2 10 L55 10 M50 5 L58 10 L50 15" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </div>
+      <div class="session-node">
+        <div class="eyebrow">WORKSHOP</div>
+        <div class="title-m" style="font-size: 32px; margin-top: 12px;">Sprint + 發表</div>
+        <div class="small mt-s">2.5 天實作<br>組內動態</div>
+      </div>
+      <div class="timeline-arrow">
+        <svg width="60" height="20" viewBox="0 0 60 20" fill="none"><path d="M2 10 L55 10 M50 5 L58 10 L50 15" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </div>
+      <div class="session-node active">
+        <div class="eyebrow">POST-FORM</div>
+        <div class="title-m" style="font-size: 32px; margin-top: 12px;">Workshop 後</div>
+        <div class="small mt-s">個人觀點<br>8 題 · 約 12 min</div>
+      </div>
+    </div>
+
+    <div class="callout" style="margin-top: 56px; font-size: 24px;">
+      Pre 和 Post 問的是<strong>同一組題目</strong>，做前做後各填一次，期望你能看到自己對「專案管理系統、AI 開發」的想法變化。
+    </div>
+
+    <div class="price-strip" style="margin-top: 48px;">
+      <div style="flex: 1;">
+        <div class="tag">PRE-FORM</div>
+        <div class="val" style="font-size: 22px;"><a href="https://docs.google.com/forms/d/e/1FAIpQLSefbUlgWw3OWWh_O6czIWTrvgJmRHOl0E6tLiu74TOPGH8WVA/viewform?usp=header" style="color: inherit; text-decoration: underline;">Pre-form 連結（會後發 Slack）</a></div>
+      </div>
+      <div style="width: 1px; height: 48px; background: rgba(245,240,235,0.2);"></div>
+      <div style="flex: 1;">
+        <div class="tag">POST-FORM</div>
+        <div class="val" style="font-size: 22px;">發表當晚發放</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════════════ Slide 11 | 時程 + 隱私 ═══════════════ -->
+  <section class="slide" data-label="時程與隱私">
+    <div class="chrome">
+      <div class="tl">06 · Pre/Post Form</div>
+      <div class="tr">TIMING &amp; PRIVACY</div>
+      <div class="bl">13 / 16</div>
+      <div class="br">填寫規則</div>
+    </div>
+
+    <div class="section-head">
+      <div class="num">12</div>
+      <div class="title-l">填寫時程 · 隱私保證</div>
+      <div class="rule"></div>
+    </div>
+
+    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 64px; margin-top: 56px;">
+      <div>
+        <div class="eyebrow" style="margin-bottom: 24px;">TIMING</div>
+
+        <div class="numbered-item">
+          <div class="n">PRE</div>
+          <div>
+            <div class="title-m" style="font-size: 28px;">會後立即發</div>
+            <div class="small" style="margin-top: 6px;">截止：<strong>今晚 23:59</strong></div>
+          </div>
+        </div>
+
+        <div class="numbered-item">
+          <div class="n">POST</div>
+          <div>
+            <div class="title-m" style="font-size: 28px;">發表當晚發</div>
+            <div class="small" style="margin-top: 6px;">截止：<strong>下週一 12:00</strong></div>
+          </div>
+        </div>
+      </div>
+
+      <div>
+        <div class="eyebrow" style="margin-bottom: 24px;">PRIVACY</div>
+
+        <div class="bullet-row"><div class="body">具名欄位<strong>僅主辦方與指定彙整人</strong>可看</div></div>
+        <div class="bullet-row"><div class="body">報告<strong>去識別化</strong>才發布</div></div>
+        <div class="bullet-row"><div class="body">原始回答不會轉傳到任何非主辦方群組</div></div>
+      </div>
+    </div>
+
+  </section>
+
+  <!-- ═══════════════ Slide 13 | Q&A 漏洞修補 ═══════════════ -->
+  <section class="slide dark" data-label="Q&A" style="display: flex; flex-direction: column; justify-content: center;">
+    <div class="chrome">
+      <div class="tl">07 · 疑問與漏洞修補</div>
+      <div class="tr">OPEN Q&amp;A</div>
+      <div class="bl">14 / 16</div>
+      <div class="br">11 MIN</div>
+    </div>
+
+    <div class="section-head">
+      <div class="num">13</div>
+      <div class="title-l" style="color: var(--cream);">現在進入 Q&amp;A</div>
+      <div class="rule"></div>
+    </div>
+
+    <div class="body" style="margin-top: 32px; max-width: 1600px; color: var(--gray-2); white-space: nowrap;">
+      現在是說明會的<strong style="color: var(--cream);">漏洞修補時段</strong>，任何看不懂、覺得有問題、覺得漏寫的地方，都可以提出。
+    </div>
+
+  </section>
+
+  <!-- ═══════════════ Slide 18 | 收尾 時程公告 ═══════════════ -->
+  <section class="slide" data-label="接下來的流程">
+    <div class="chrome">
+      <div class="tl">08 · 收尾</div>
+      <div class="tr">WHAT HAPPENS NEXT</div>
+      <div class="bl">15 / 16</div>
+      <div class="br">規則凍結 · Pre-form 發放</div>
+    </div>
+
+    <div class="section-head">
+      <div class="num">14</div>
+      <div class="title-l">接下來的流程</div>
+      <div class="rule"></div>
+    </div>
+
+    <div style="margin-top: 48px;">
+      <div class="numbered-item">
+        <div class="n">10:40</div>
+        <div>
+          <div class="title-m" style="font-size: 30px;">規則凍結</div>
+          <div class="small" style="margin-top: 6px;">本次結束的版本就是定版（若有當場修訂會反映）</div>
+        </div>
+      </div>
+      <div class="numbered-item">
+        <div class="n">10:40</div>
+        <div>
+          <div class="title-m" style="font-size: 30px;">Pre-form 連結發到 Slack</div>
+          <div class="small" style="margin-top: 6px;">在 #team-software-all 頻道，請 9 位參賽者立刻填</div>
+        </div>
+      </div>
+      <div class="numbered-item">
+        <div class="n">23:59</div>
+        <div>
+          <div class="title-m" style="font-size: 30px;">Pre-form 截止</div>
+          <div class="small" style="margin-top: 6px;">週二 23:59 前所有 9 位必須填完</div>
+        </div>
+      </div>
+      <div class="numbered-item">
+        <div class="n">WED 08:30</div>
+        <div>
+          <div class="title-m" style="font-size: 30px;">最終公告</div>
+          <div class="small" style="margin-top: 6px;">規則定版確認</div>
+        </div>
+      </div>
+      <div class="numbered-item">
+        <div class="n">WED 09:00</div>
+        <div>
+          <div class="title-m" style="font-size: 30px; color: var(--coral-deep);">Sprint Day 1 開工</div>
+          <div class="small" style="margin-top: 6px;">從此刻起主辦方零介入，直到週五 14:00 發表</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════════════ Slide 14 | CTA ═══════════════ -->
+  <section class="slide dark" data-label="CTA">
+    <div class="cover-halo"></div>
+
+    <div class="chrome">
+      <div class="tl">EWILL · AI FLOW SPRINT</div>
+      <div class="tr"><span class="dot"></span>開工倒數</div>
+      <div class="bl">16 / 16</div>
+      <div class="br">2026-04-22 ~ 04-24</div>
+    </div>
+
+    <div style="position: relative; z-index: 2; height: 100%; display: flex; flex-direction: column; justify-content: center; max-width: 1400px;">
+      <div class="eyebrow" style="margin-bottom: 40px;">開工倒數</div>
+      <div class="display" style="color: var(--cream);">
+        46<br>
+        <span style="color: var(--coral);">小時</span>
+      </div>
+      <div style="height: 48px;"></div>
+      <div class="subtitle" style="color: var(--gray-2); max-width: 900px;">
+        規則檔、問卷、共享資料夾連結都在 Slack<br>
+        <span class="mono" style="color: var(--coral);">#team-software-all</span> 頻道
+      </div>
+      <div style="margin-top: 72px;">
+        <div class="small" style="color: var(--gray-2);">週三前有問題 → Slack 提問</div>
+      </div>
+    </div>
+  </section>
+</deck-stage>
+
+</body>
+</html>

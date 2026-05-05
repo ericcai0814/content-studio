@@ -1,0 +1,2038 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<title>Claude Opus 4.7 介紹簡報</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@300;400;500;600;700;900&family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<script>
+/**
+ * <deck-stage> — reusable web component for HTML decks.
+ *
+ * Handles:
+ *  (a) speaker notes — reads <script type="application/json" id="speaker-notes">
+ *      and posts {slideIndexChanged: N} to the parent window on nav.
+ *  (b) keyboard navigation — ←/→, PgUp/PgDn, Space, Home/End, number keys.
+ *  (c) press R to reset to slide 0 (with a tasteful keyboard hint).
+ *  (d) bottom-center overlay showing slide count + hints, fades out on idle.
+ *  (e) auto-scaling — inner canvas is a fixed design size (default 1920×1080)
+ *      scaled with `transform: scale()` to fit the viewport, letterboxed.
+ *      Set the `noscale` attribute to render at authored size (1:1) — the
+ *      PPTX exporter sets this so its DOM capture sees unscaled geometry.
+ *  (f) print — `@media print` lays every slide out as its own page at the
+ *      design size, so the browser's Print → Save as PDF produces a clean
+ *      one-page-per-slide PDF with no extra setup.
+ *
+ * Slides are HIDDEN, not unmounted. Non-active slides stay in the DOM with
+ * `visibility: hidden` + `opacity: 0`, so their state (videos, iframes,
+ * form inputs, React trees) is preserved across navigation.
+ *
+ * Lifecycle event — the component dispatches a `slidechange` CustomEvent on
+ * itself whenever the active slide changes (including the initial mount).
+ * The event bubbles and composes out of shadow DOM, so you can listen on
+ * the <deck-stage> element or on document:
+ *
+ *   document.querySelector('deck-stage').addEventListener('slidechange', (e) => {
+ *     e.detail.index         // new 0-based index
+ *     e.detail.previousIndex // previous index, or -1 on init
+ *     e.detail.total         // total slide count
+ *     e.detail.slide         // the new active slide element
+ *     e.detail.previousSlide // the prior slide element, or null on init
+ *     e.detail.reason        // 'init' | 'keyboard' | 'click' | 'tap' | 'api'
+ *   });
+ *
+ * Persistence: current slide index is saved to localStorage keyed by the
+ * document path, so refresh returns you to the same place.
+ *
+ * Usage:
+ *   <deck-stage width="1920" height="1080">
+ *     <section data-label="Title">...</section>
+ *     <section data-label="Agenda">...</section>
+ *   </deck-stage>
+ *
+ * Slides are the direct element children of <deck-stage>. Each slide is
+ * automatically tagged with:
+ *   - data-screen-label="NN Label"   (1-indexed, for comment flow)
+ *   - data-om-validate="no_overflowing_text,no_overlapping_text,slide_sized_text"
+ */
+
+(() => {
+  const DESIGN_W_DEFAULT = 1920;
+  const DESIGN_H_DEFAULT = 1080;
+  const STORAGE_PREFIX = 'deck-stage:slide:';
+  const OVERLAY_HIDE_MS = 1800;
+  const VALIDATE_ATTR = 'no_overflowing_text,no_overlapping_text,slide_sized_text';
+
+  const pad2 = (n) => String(n).padStart(2, '0');
+
+  const stylesheet = `
+    :host {
+      position: fixed;
+      inset: 0;
+      display: block;
+      background: #000;
+      color: #fff;
+      font-family: -apple-system, BlinkMacSystemFont, "Helvetica Neue", Helvetica, Arial, sans-serif;
+      overflow: hidden;
+    }
+
+    .stage {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .canvas {
+      position: relative;
+      transform-origin: center center;
+      flex-shrink: 0;
+      background: #fff;
+      will-change: transform;
+    }
+
+    /* Slides live in light DOM (via <slot>) so authored CSS still applies.
+       We absolutely position each slotted child to stack them. */
+    ::slotted(*) {
+      position: absolute !important;
+      inset: 0 !important;
+      width: 100% !important;
+      height: 100% !important;
+      box-sizing: border-box !important;
+      overflow: hidden;
+      opacity: 0;
+      pointer-events: none;
+      visibility: hidden;
+    }
+    ::slotted([data-deck-active]) {
+      opacity: 1;
+      pointer-events: auto;
+      visibility: visible;
+    }
+
+    /* Tap zones for mobile — back/forward thirds like Stories.
+       Transparent, no visible UI, don't block the overlay. */
+    .tapzones {
+      position: fixed;
+      inset: 0;
+      display: flex;
+      z-index: 2147482000;
+      pointer-events: none;
+    }
+    .tapzone {
+      flex: 1;
+      pointer-events: auto;
+      -webkit-tap-highlight-color: transparent;
+    }
+    /* Only activate tap zones on coarse pointers (touch devices). */
+    @media (hover: hover) and (pointer: fine) {
+      .tapzones { display: none; }
+    }
+
+    .overlay {
+      position: fixed;
+      left: 50%;
+      bottom: 22px;
+      transform: translate(-50%, 6px) scale(0.92);
+      filter: blur(6px);
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      padding: 4px;
+      background: #000;
+      color: #fff;
+      border-radius: 999px;
+      font-size: 12px;
+      font-feature-settings: "tnum" 1;
+      letter-spacing: 0.01em;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 260ms ease, transform 260ms cubic-bezier(.2,.8,.2,1), filter 260ms ease;
+      transform-origin: center bottom;
+      z-index: 2147483000;
+      user-select: none;
+    }
+    .overlay[data-visible] {
+      opacity: 1;
+      pointer-events: auto;
+      transform: translate(-50%, 0) scale(1);
+      filter: blur(0);
+    }
+
+    .btn {
+      appearance: none;
+      -webkit-appearance: none;
+      background: transparent;
+      border: 0;
+      margin: 0;
+      padding: 0;
+      color: inherit;
+      font: inherit;
+      cursor: default;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      height: 28px;
+      min-width: 28px;
+      border-radius: 999px;
+      color: rgba(255,255,255,0.72);
+      transition: background 140ms ease, color 140ms ease;
+      -webkit-tap-highlight-color: transparent;
+    }
+    .btn:hover { background: rgba(255,255,255,0.12); color: #fff; }
+    .btn:active { background: rgba(255,255,255,0.18); }
+    .btn:focus { outline: none; }
+    .btn:focus-visible { outline: none; }
+    .btn::-moz-focus-inner { border: 0; }
+    .btn svg { width: 14px; height: 14px; display: block; }
+    .btn.reset {
+      font-size: 11px;
+      font-weight: 500;
+      letter-spacing: 0.02em;
+      padding: 0 10px 0 12px;
+      gap: 6px;
+      color: rgba(255,255,255,0.72);
+    }
+    .btn.reset .kbd {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-width: 16px;
+      height: 16px;
+      padding: 0 4px;
+      font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+      font-size: 10px;
+      line-height: 1;
+      color: rgba(255,255,255,0.88);
+      background: rgba(255,255,255,0.12);
+      border-radius: 4px;
+    }
+
+    .count {
+      font-variant-numeric: tabular-nums;
+      color: #fff;
+      font-weight: 500;
+      padding: 0 8px;
+      min-width: 42px;
+      text-align: center;
+      font-size: 12px;
+    }
+    .count .sep { color: rgba(255,255,255,0.45); margin: 0 3px; font-weight: 400; }
+    .count .total { color: rgba(255,255,255,0.55); }
+
+    .divider {
+      width: 1px;
+      height: 14px;
+      background: rgba(255,255,255,0.18);
+      margin: 0 2px;
+    }
+
+    /* ── Print: one page per slide, no chrome ────────────────────────────
+       The screen layout stacks every slide at inset:0 inside a scaled
+       canvas; for print we want them in document flow at the authored
+       design size so the browser paginates one slide per sheet. The
+       @page size is set from the width/height attributes via the inline
+       <style id="deck-stage-print-page"> that connectedCallback injects
+       into <head> (the @page at-rule has no effect inside shadow DOM). */
+    @media print {
+      :host {
+        position: static;
+        inset: auto;
+        background: none;
+        overflow: visible;
+        color: inherit;
+      }
+      .stage { position: static; display: block; }
+      .canvas {
+        transform: none !important;
+        width: auto !important;
+        height: auto !important;
+        background: none;
+        will-change: auto;
+      }
+      ::slotted(*) {
+        position: relative !important;
+        inset: auto !important;
+        width: var(--deck-design-w) !important;
+        height: var(--deck-design-h) !important;
+        box-sizing: border-box !important;
+        opacity: 1 !important;
+        visibility: visible !important;
+        pointer-events: auto;
+        break-after: page;
+        page-break-after: always;
+        break-inside: avoid;
+        overflow: hidden;
+      }
+      ::slotted(*:last-child) {
+        break-after: auto;
+        page-break-after: auto;
+      }
+      .overlay, .tapzones { display: none !important; }
+    }
+  `;
+
+  class DeckStage extends HTMLElement {
+    static get observedAttributes() { return ['width', 'height', 'noscale']; }
+
+    constructor() {
+      super();
+      this._root = this.attachShadow({ mode: 'open' });
+      this._index = 0;
+      this._slides = [];
+      this._notes = [];
+      this._hideTimer = null;
+      this._mouseIdleTimer = null;
+      this._storageKey = STORAGE_PREFIX + (location.pathname || '/');
+
+      this._onKey = this._onKey.bind(this);
+      this._onResize = this._onResize.bind(this);
+      this._onSlotChange = this._onSlotChange.bind(this);
+      this._onMouseMove = this._onMouseMove.bind(this);
+      this._onTapBack = this._onTapBack.bind(this);
+      this._onTapForward = this._onTapForward.bind(this);
+    }
+
+    get designWidth() {
+      return parseInt(this.getAttribute('width'), 10) || DESIGN_W_DEFAULT;
+    }
+    get designHeight() {
+      return parseInt(this.getAttribute('height'), 10) || DESIGN_H_DEFAULT;
+    }
+
+    connectedCallback() {
+      this._render();
+      this._loadNotes();
+      this._syncPrintPageRule();
+      window.addEventListener('keydown', this._onKey);
+      window.addEventListener('resize', this._onResize);
+      window.addEventListener('mousemove', this._onMouseMove, { passive: true });
+      // Initial collection + layout happens via slotchange, which fires on mount.
+    }
+
+    disconnectedCallback() {
+      window.removeEventListener('keydown', this._onKey);
+      window.removeEventListener('resize', this._onResize);
+      window.removeEventListener('mousemove', this._onMouseMove);
+      if (this._hideTimer) clearTimeout(this._hideTimer);
+      if (this._mouseIdleTimer) clearTimeout(this._mouseIdleTimer);
+    }
+
+    attributeChangedCallback() {
+      if (this._canvas) {
+        this._canvas.style.width = this.designWidth + 'px';
+        this._canvas.style.height = this.designHeight + 'px';
+        this._canvas.style.setProperty('--deck-design-w', this.designWidth + 'px');
+        this._canvas.style.setProperty('--deck-design-h', this.designHeight + 'px');
+        this._fit();
+        this._syncPrintPageRule();
+      }
+    }
+
+    _render() {
+      const style = document.createElement('style');
+      style.textContent = stylesheet;
+
+      const stage = document.createElement('div');
+      stage.className = 'stage';
+
+      const canvas = document.createElement('div');
+      canvas.className = 'canvas';
+      canvas.style.width = this.designWidth + 'px';
+      canvas.style.height = this.designHeight + 'px';
+      canvas.style.setProperty('--deck-design-w', this.designWidth + 'px');
+      canvas.style.setProperty('--deck-design-h', this.designHeight + 'px');
+
+      const slot = document.createElement('slot');
+      slot.addEventListener('slotchange', this._onSlotChange);
+      canvas.appendChild(slot);
+      stage.appendChild(canvas);
+
+      // Tap zones (mobile): left third = back, right third = forward.
+      const tapzones = document.createElement('div');
+      tapzones.className = 'tapzones export-hidden';
+      tapzones.setAttribute('aria-hidden', 'true');
+      const tzBack = document.createElement('div');
+      tzBack.className = 'tapzone tapzone--back';
+      const tzMid = document.createElement('div');
+      tzMid.className = 'tapzone tapzone--mid';
+      tzMid.style.pointerEvents = 'none';
+      const tzFwd = document.createElement('div');
+      tzFwd.className = 'tapzone tapzone--fwd';
+      tzBack.addEventListener('click', this._onTapBack);
+      tzFwd.addEventListener('click', this._onTapForward);
+      tapzones.append(tzBack, tzMid, tzFwd);
+
+      // Overlay: compact, solid black, with clickable controls.
+      const overlay = document.createElement('div');
+      overlay.className = 'overlay export-hidden';
+      overlay.setAttribute('role', 'toolbar');
+      overlay.setAttribute('aria-label', 'Deck controls');
+      overlay.innerHTML = `
+        <button class="btn prev" type="button" aria-label="Previous slide" title="Previous (←)">
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 3L5 8l5 5"/></svg>
+        </button>
+        <span class="count" aria-live="polite"><span class="current">1</span><span class="sep">/</span><span class="total">1</span></span>
+        <button class="btn next" type="button" aria-label="Next slide" title="Next (→)">
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 3l5 5-5 5"/></svg>
+        </button>
+        <span class="divider"></span>
+        <button class="btn reset" type="button" aria-label="Reset to first slide" title="Reset (R)">Reset<span class="kbd">R</span></button>
+      `;
+
+      overlay.querySelector('.prev').addEventListener('click', () => this._go(this._index - 1, 'click'));
+      overlay.querySelector('.next').addEventListener('click', () => this._go(this._index + 1, 'click'));
+      overlay.querySelector('.reset').addEventListener('click', () => this._go(0, 'click'));
+
+      this._root.append(style, stage, tapzones, overlay);
+      this._canvas = canvas;
+      this._slot = slot;
+      this._overlay = overlay;
+      this._countEl = overlay.querySelector('.current');
+      this._totalEl = overlay.querySelector('.total');
+    }
+
+    /** @page must live in the document stylesheet — it's a no-op inside
+     *  shadow DOM. Inject/update a single <head> style tag so the print
+     *  sheet matches the design size and Save-as-PDF yields one slide per
+     *  page with no margins. */
+    _syncPrintPageRule() {
+      const id = 'deck-stage-print-page';
+      let tag = document.getElementById(id);
+      if (!tag) {
+        tag = document.createElement('style');
+        tag.id = id;
+        document.head.appendChild(tag);
+      }
+      tag.textContent =
+        '@page { size: ' + this.designWidth + 'px ' + this.designHeight + 'px; margin: 0; } ' +
+        '@media print { html, body { margin: 0 !important; padding: 0 !important; background: none !important; overflow: visible !important; height: auto !important; } ' +
+        '* { -webkit-print-color-adjust: exact; print-color-adjust: exact; } }';
+    }
+
+    _onSlotChange() {
+      this._collectSlides();
+      this._restoreIndex();
+      this._applyIndex({ showOverlay: false, broadcast: true, reason: 'init' });
+      this._fit();
+    }
+
+    _collectSlides() {
+      const assigned = this._slot.assignedElements({ flatten: true });
+      this._slides = assigned.filter((el) => {
+        // Skip template/style/script nodes even if someone slots them.
+        const tag = el.tagName;
+        return tag !== 'TEMPLATE' && tag !== 'SCRIPT' && tag !== 'STYLE';
+      });
+
+      this._slides.forEach((slide, i) => {
+        const n = i + 1;
+        // Determine a label for comment flow: prefer explicit data-label,
+        // then an existing data-screen-label, then first heading, else "Slide".
+        let label = slide.getAttribute('data-label');
+        if (!label) {
+          const existing = slide.getAttribute('data-screen-label');
+          if (existing) {
+            // Strip any leading number the author may have included.
+            label = existing.replace(/^\s*\d+\s*/, '').trim() || existing;
+          }
+        }
+        if (!label) {
+          const h = slide.querySelector('h1, h2, h3, [data-title]');
+          if (h) label = (h.textContent || '').trim().slice(0, 40);
+        }
+        if (!label) label = 'Slide';
+        slide.setAttribute('data-screen-label', `${pad2(n)} ${label}`);
+
+        // Validation attribute for comment flow / auto-checks.
+        if (!slide.hasAttribute('data-om-validate')) {
+          slide.setAttribute('data-om-validate', VALIDATE_ATTR);
+        }
+
+        slide.setAttribute('data-deck-slide', String(i));
+      });
+
+      if (this._totalEl) this._totalEl.textContent = String(this._slides.length || 1);
+      if (this._index >= this._slides.length) this._index = Math.max(0, this._slides.length - 1);
+    }
+
+    _loadNotes() {
+      const tag = document.getElementById('speaker-notes');
+      if (!tag) { this._notes = []; return; }
+      try {
+        const parsed = JSON.parse(tag.textContent || '[]');
+        if (Array.isArray(parsed)) this._notes = parsed;
+      } catch (e) {
+        console.warn('[deck-stage] Failed to parse #speaker-notes JSON:', e);
+        this._notes = [];
+      }
+    }
+
+    _restoreIndex() {
+      try {
+        const raw = localStorage.getItem(this._storageKey);
+        if (raw != null) {
+          const n = parseInt(raw, 10);
+          if (Number.isFinite(n) && n >= 0 && n < this._slides.length) {
+            this._index = n;
+          }
+        }
+      } catch (e) { /* ignore */ }
+    }
+
+    _persistIndex() {
+      try { localStorage.setItem(this._storageKey, String(this._index)); }
+      catch (e) { /* ignore */ }
+    }
+
+    _applyIndex({ showOverlay = true, broadcast = true, reason = 'init' } = {}) {
+      if (!this._slides.length) return;
+      const prev = this._prevIndex == null ? -1 : this._prevIndex;
+      const curr = this._index;
+      this._slides.forEach((s, i) => {
+        if (i === curr) s.setAttribute('data-deck-active', '');
+        else s.removeAttribute('data-deck-active');
+      });
+      if (this._countEl) this._countEl.textContent = String(curr + 1);
+      this._persistIndex();
+
+      if (broadcast) {
+        // (1) Legacy: host-window postMessage for speaker-notes renderers.
+        try { window.postMessage({ slideIndexChanged: curr }, '*'); } catch (e) {}
+
+        // (2) In-page CustomEvent on the <deck-stage> element itself.
+        //     Bubbles and composes out of shadow DOM so slide code can listen:
+        //       document.querySelector('deck-stage').addEventListener('slidechange', e => {
+        //         e.detail.index, e.detail.previousIndex, e.detail.total, e.detail.slide, e.detail.reason
+        //       });
+        const detail = {
+          index: curr,
+          previousIndex: prev,
+          total: this._slides.length,
+          slide: this._slides[curr] || null,
+          previousSlide: prev >= 0 ? (this._slides[prev] || null) : null,
+          reason: reason, // 'init' | 'keyboard' | 'click' | 'tap' | 'api'
+        };
+        this.dispatchEvent(new CustomEvent('slidechange', {
+          detail,
+          bubbles: true,
+          composed: true,
+        }));
+      }
+
+      this._prevIndex = curr;
+      if (showOverlay) this._flashOverlay();
+    }
+
+    _flashOverlay() {
+      if (!this._overlay) return;
+      this._overlay.setAttribute('data-visible', '');
+      if (this._hideTimer) clearTimeout(this._hideTimer);
+      this._hideTimer = setTimeout(() => {
+        this._overlay.removeAttribute('data-visible');
+      }, OVERLAY_HIDE_MS);
+    }
+
+    _fit() {
+      if (!this._canvas) return;
+      // PPTX export sets noscale so the DOM capture sees authored-size
+      // geometry — the scaled canvas is in shadow DOM, so the exporter's
+      // resetTransformSelector can't reach .canvas.style.transform directly.
+      if (this.hasAttribute('noscale')) {
+        this._canvas.style.transform = 'none';
+        return;
+      }
+      const vw = window.innerWidth;
+      const vh = window.innerHeight;
+      const s = Math.min(vw / this.designWidth, vh / this.designHeight);
+      this._canvas.style.transform = `scale(${s})`;
+    }
+
+    _onResize() { this._fit(); }
+
+    _onMouseMove() {
+      // Keep overlay visible while mouse moves; hide after idle.
+      this._flashOverlay();
+    }
+
+    _onTapBack(e) {
+      e.preventDefault();
+      this._go(this._index - 1, 'tap');
+    }
+
+    _onTapForward(e) {
+      e.preventDefault();
+      this._go(this._index + 1, 'tap');
+    }
+
+    _onKey(e) {
+      // Ignore when the user is typing.
+      const t = e.target;
+      if (t && (t.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName))) return;
+      if (e.metaKey || e.ctrlKey || e.altKey) return;
+
+      const key = e.key;
+      let handled = true;
+
+      if (key === 'ArrowRight' || key === 'PageDown' || key === ' ' || key === 'Spacebar') {
+        this._go(this._index + 1, 'keyboard');
+      } else if (key === 'ArrowLeft' || key === 'PageUp') {
+        this._go(this._index - 1, 'keyboard');
+      } else if (key === 'Home') {
+        this._go(0, 'keyboard');
+      } else if (key === 'End') {
+        this._go(this._slides.length - 1, 'keyboard');
+      } else if (key === 'r' || key === 'R') {
+        this._go(0, 'keyboard');
+      } else if (/^[0-9]$/.test(key)) {
+        // 1..9 jump to that slide; 0 jumps to 10.
+        const n = key === '0' ? 9 : parseInt(key, 10) - 1;
+        if (n < this._slides.length) this._go(n, 'keyboard');
+      } else {
+        handled = false;
+      }
+
+      if (handled) {
+        e.preventDefault();
+        this._flashOverlay();
+      }
+    }
+
+    _go(i, reason = 'api') {
+      if (!this._slides.length) return;
+      const clamped = Math.max(0, Math.min(this._slides.length - 1, i));
+      if (clamped === this._index) {
+        this._flashOverlay();
+        return;
+      }
+      this._index = clamped;
+      this._applyIndex({ showOverlay: true, broadcast: true, reason });
+    }
+
+    // Public API ------------------------------------------------------------
+
+    /** Current slide index (0-based). */
+    get index() { return this._index; }
+    /** Total slide count. */
+    get length() { return this._slides.length; }
+    /** Programmatically navigate. */
+    goTo(i) { this._go(i, 'api'); }
+    next() { this._go(this._index + 1, 'api'); }
+    prev() { this._go(this._index - 1, 'api'); }
+    reset() { this._go(0, 'api'); }
+  }
+
+  if (!customElements.get('deck-stage')) {
+    customElements.define('deck-stage', DeckStage);
+  }
+})();
+
+</script>
+<style>
+  :root {
+    --coral: #D4A574;
+    --coral-deep: #C17E5A;
+    --coral-soft: #E8C9A8;
+    --cream: #F5F0EB;
+    --cream-deep: #EBE3D9;
+    --ink: #1A1A1A;
+    --ink-soft: #2A2A2A;
+    --gray-1: #8B8680;
+    --gray-2: #B8B2AA;
+    --gray-3: #D8D2CA;
+    --line: #1A1A1A;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    font-family: "Noto Sans TC", "Inter", -apple-system, sans-serif;
+    font-weight: 400;
+    color: var(--ink);
+    background: #000;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+
+  section.slide {
+    background: var(--cream);
+    color: var(--ink);
+    padding: 88px 120px;
+    font-size: 22px;
+    line-height: 1.55;
+    overflow: hidden;
+    position: relative;
+  }
+  section.slide.dark {
+    background: var(--ink);
+    color: var(--cream);
+  }
+
+  /* Shared chrome: page number + brand mark */
+  .chrome {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    z-index: 1;
+  }
+  .chrome .tl {
+    position: absolute; top: 56px; left: 120px;
+    font-family: "JetBrains Mono", monospace;
+    font-size: 12px; letter-spacing: 0.14em;
+    color: var(--gray-1);
+    text-transform: uppercase;
+  }
+  section.slide.dark .chrome .tl { color: var(--gray-2); }
+  .chrome .tr {
+    position: absolute; top: 56px; right: 120px;
+    font-family: "JetBrains Mono", monospace;
+    font-size: 12px; letter-spacing: 0.14em;
+    color: var(--gray-1);
+    display: flex; gap: 10px; align-items: center;
+  }
+  section.slide.dark .chrome .tr { color: var(--gray-2); }
+  .chrome .tr .dot { width: 5px; height: 5px; background: var(--coral); border-radius: 50%; display: inline-block; }
+  .chrome .bl {
+    position: absolute; bottom: 56px; left: 120px;
+    font-family: "JetBrains Mono", monospace;
+    font-size: 11px; letter-spacing: 0.18em;
+    color: var(--gray-1);
+    text-transform: uppercase;
+  }
+  section.slide.dark .chrome .bl { color: var(--gray-2); }
+  .chrome .br {
+    position: absolute; bottom: 56px; right: 120px;
+    font-family: "JetBrains Mono", monospace;
+    font-size: 11px; letter-spacing: 0.18em;
+    color: var(--gray-1);
+  }
+  section.slide.dark .chrome .br { color: var(--gray-2); }
+
+  /* Geometric decoration (subtle) */
+  .geo-circle {
+    position: absolute; border-radius: 50%; border: 1px solid currentColor;
+    opacity: 0.12;
+  }
+  .geo-line {
+    position: absolute; background: currentColor; opacity: 0.18;
+  }
+
+  h1, h2, h3, h4 { margin: 0; font-weight: 700; }
+
+  /* Typography scale */
+  .eyebrow {
+    font-family: "JetBrains Mono", monospace;
+    font-size: 13px;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: var(--coral-deep);
+    font-weight: 500;
+  }
+  section.slide.dark .eyebrow { color: var(--coral); }
+
+  .display {
+    font-family: "Noto Sans TC", "Inter", sans-serif;
+    font-weight: 900;
+    font-size: 148px;
+    line-height: 0.96;
+    letter-spacing: -0.02em;
+  }
+  .title-xl {
+    font-family: "Noto Sans TC", "Inter", sans-serif;
+    font-weight: 800;
+    font-size: 92px;
+    line-height: 1.02;
+    letter-spacing: -0.015em;
+  }
+  .title-l {
+    font-family: "Noto Sans TC", "Inter", sans-serif;
+    font-weight: 700;
+    font-size: 64px;
+    line-height: 1.08;
+    letter-spacing: -0.01em;
+  }
+  .title-m {
+    font-family: "Noto Sans TC", "Inter", sans-serif;
+    font-weight: 700;
+    font-size: 40px;
+    line-height: 1.2;
+  }
+  .subtitle {
+    font-family: "Noto Sans TC", "Inter", sans-serif;
+    font-weight: 400;
+    font-size: 28px;
+    line-height: 1.4;
+    color: var(--ink-soft);
+  }
+  section.slide.dark .subtitle { color: var(--gray-2); }
+  .body {
+    font-family: "Noto Sans TC", "Inter", sans-serif;
+    font-weight: 400;
+    font-size: 22px;
+    line-height: 1.6;
+  }
+  .small {
+    font-size: 18px; line-height: 1.5; color: var(--gray-1);
+  }
+  .mono {
+    font-family: "JetBrains Mono", monospace;
+  }
+
+  /* Section header row: slide number + title */
+  .section-head {
+    display: flex; align-items: baseline; gap: 28px;
+    margin-bottom: 48px;
+  }
+  .section-head .num {
+    font-family: "JetBrains Mono", monospace;
+    font-size: 14px;
+    letter-spacing: 0.2em;
+    color: var(--coral-deep);
+    font-weight: 500;
+  }
+  section.slide.dark .section-head .num { color: var(--coral); }
+  .section-head .rule {
+    flex: 1; height: 1px; background: var(--ink); opacity: 0.15;
+  }
+  section.slide.dark .section-head .rule { background: var(--cream); opacity: 0.2; }
+
+  /* Horizontal hairline divider */
+  .hairline { height: 1px; background: var(--ink); opacity: 0.12; }
+  section.slide.dark .hairline { background: var(--cream); opacity: 0.18; }
+
+  /* Coral accent dot */
+  .dot { width: 8px; height: 8px; background: var(--coral-deep); border-radius: 50%; display: inline-block; }
+
+  /* Callout box */
+  .callout {
+    border-left: 2px solid var(--coral-deep);
+    padding: 4px 0 4px 24px;
+    font-size: 22px;
+    color: var(--ink-soft);
+  }
+  section.slide.dark .callout { color: var(--gray-2); }
+
+  /* Card */
+  .card {
+    background: #FFFCF7;
+    border: 1px solid rgba(26,26,26,0.08);
+    border-radius: 4px;
+    padding: 40px;
+    position: relative;
+  }
+  section.slide.dark .card {
+    background: #242321;
+    border: 1px solid rgba(245,240,235,0.08);
+  }
+
+  /* Utility */
+  .flex { display: flex; }
+  .col { display: flex; flex-direction: column; }
+  .grow { flex: 1; }
+  .gap-s { gap: 16px; } .gap-m { gap: 32px; } .gap-l { gap: 56px; }
+  .mt-s { margin-top: 16px; } .mt-m { margin-top: 32px; } .mt-l { margin-top: 56px; } .mt-xl { margin-top: 88px; }
+  .center { display: flex; align-items: center; justify-content: center; }
+
+  /* Numeric label */
+  .numbered-item { display: flex; gap: 20px; align-items: flex-start; padding: 18px 0; }
+  .numbered-item + .numbered-item { border-top: 1px solid rgba(26,26,26,0.08); }
+  .numbered-item .n {
+    font-family: "JetBrains Mono", monospace;
+    font-size: 14px;
+    color: var(--coral-deep);
+    letter-spacing: 0.14em;
+    padding-top: 4px;
+    min-width: 42px;
+  }
+
+  /* Metric / stat */
+  .stat .num {
+    font-family: "Inter", sans-serif;
+    font-weight: 700;
+    font-size: 88px;
+    line-height: 1;
+    letter-spacing: -0.02em;
+    color: var(--ink);
+  }
+  section.slide.dark .stat .num { color: var(--cream); }
+  .stat .num .accent { color: var(--coral-deep); }
+  section.slide.dark .stat .num .accent { color: var(--coral); }
+  .stat .label {
+    font-size: 18px; color: var(--gray-1); margin-top: 12px;
+    line-height: 1.45;
+  }
+
+  /* Bullet */
+  .bullet-row { display: flex; gap: 16px; padding: 10px 0; align-items: flex-start; }
+  .bullet-row::before {
+    content: ""; display: block; width: 6px; height: 6px;
+    background: var(--coral-deep); margin-top: 14px; flex-shrink: 0;
+  }
+
+  /* line icons */
+  .icn {
+    width: 40px; height: 40px; display: inline-block;
+    stroke: var(--coral-deep); stroke-width: 1.4; fill: none;
+    stroke-linecap: round; stroke-linejoin: round;
+  }
+  section.slide.dark .icn { stroke: var(--coral); }
+
+  /* Cover-specific */
+  .cover-halo {
+    position: absolute;
+    width: 1200px; height: 1200px;
+    border-radius: 50%;
+    right: -380px; top: -280px;
+    background: radial-gradient(circle at 40% 40%, rgba(212,165,116,0.35) 0%, rgba(193,126,90,0.12) 38%, transparent 65%);
+    filter: blur(10px);
+  }
+  .cover-halo-2 {
+    position: absolute;
+    width: 640px; height: 640px;
+    border-radius: 50%;
+    right: 180px; top: 240px;
+    background: radial-gradient(circle, rgba(232,201,168,0.25) 0%, transparent 60%);
+  }
+  .cover-rings {
+    position: absolute; right: 80px; top: 140px;
+    width: 780px; height: 780px;
+    opacity: 0.5;
+  }
+
+  /* Specific: session timeline */
+  .timeline { display: flex; align-items: center; gap: 0; margin-top: 20px; }
+  .session-node {
+    flex: 1; position: relative; padding: 28px;
+    border: 1px solid rgba(26,26,26,0.12);
+    background: #FFFCF7;
+    border-radius: 4px;
+  }
+  .session-node.active {
+    border-color: var(--coral-deep);
+    background: #FFF8F1;
+  }
+  .timeline-arrow {
+    width: 80px; display: flex; justify-content: center;
+    color: var(--coral-deep);
+  }
+
+  /* Quotes */
+  .quote-card {
+    background: #FFFCF7;
+    border-left: 3px solid var(--coral-deep);
+    padding: 32px 36px;
+    border-radius: 0 4px 4px 0;
+  }
+  .quote-card .q-text {
+    font-size: 22px; line-height: 1.55;
+    color: var(--ink-soft);
+    font-weight: 400;
+  }
+  .quote-card .q-attr {
+    margin-top: 20px;
+    font-size: 15px; color: var(--gray-1);
+    letter-spacing: 0.03em;
+  }
+  .quote-card .q-mark {
+    font-family: "Inter", serif;
+    font-weight: 700;
+    color: var(--coral-deep);
+    font-size: 32px;
+    line-height: 0;
+    position: relative; top: 12px;
+    margin-right: 4px;
+  }
+
+  /* Effort scale visual */
+  .effort-bar {
+    display: flex; gap: 4px; height: 10px;
+    margin: 24px 0;
+  }
+  .effort-bar div {
+    flex: 1; background: var(--gray-3); border-radius: 2px;
+  }
+  .effort-bar div.on { background: var(--coral-deep); }
+  .effort-bar div.new { background: var(--coral); }
+
+  /* Price strip */
+  .price-strip {
+    display: flex; gap: 48px; padding: 28px 36px;
+    background: var(--ink); color: var(--cream);
+    border-radius: 4px;
+    align-items: center;
+  }
+  .price-strip .tag {
+    font-family: "JetBrains Mono", monospace;
+    font-size: 12px; letter-spacing: 0.2em;
+    color: var(--coral);
+  }
+  .price-strip .val {
+    font-family: "Inter", sans-serif;
+    font-weight: 600;
+    font-size: 28px;
+  }
+  .price-strip .val .unit {
+    color: var(--gray-2); font-weight: 400; font-size: 16px; margin-left: 4px; white-space: nowrap;
+  }
+  .price-strip .val { white-space: nowrap; }
+
+  /* Placeholder image */
+  .placeholder {
+    background:
+      repeating-linear-gradient(135deg,
+        rgba(26,26,26,0.04) 0px, rgba(26,26,26,0.04) 8px,
+        transparent 8px, transparent 16px),
+      var(--cream-deep);
+    border: 1px solid rgba(26,26,26,0.1);
+    display: flex; align-items: center; justify-content: center;
+    color: var(--gray-1);
+    font-family: "JetBrains Mono", monospace;
+    font-size: 12px; letter-spacing: 0.14em;
+    text-transform: uppercase;
+  }
+</style>
+</head>
+<body>
+
+<deck-stage width="1920" height="1080">
+
+  <!-- ═══════════════ Slide 01 | Cover ═══════════════ -->
+  <section class="slide dark" data-label="Cover">
+    <div class="cover-halo"></div>
+    <div class="cover-halo-2"></div>
+    <svg class="cover-rings" viewBox="0 0 780 780" fill="none">
+      <circle cx="390" cy="390" r="389" stroke="#D4A574" stroke-opacity="0.18"/>
+      <circle cx="390" cy="390" r="300" stroke="#D4A574" stroke-opacity="0.14"/>
+      <circle cx="390" cy="390" r="210" stroke="#D4A574" stroke-opacity="0.1"/>
+      <circle cx="390" cy="390" r="120" stroke="#D4A574" stroke-opacity="0.08"/>
+      <circle cx="390" cy="390" r="6" fill="#D4A574"/>
+    </svg>
+
+    <div class="chrome">
+      <div class="tl">ANTHROPIC · 旗艦模型發布</div>
+      <div class="tr"><span class="dot"></span>LIVE · 2026</div>
+      <div class="bl">01 / 15</div>
+      <div class="br">CLAUDE · OPUS · 4.7</div>
+    </div>
+
+    <div style="position: relative; z-index: 2; height: 100%; display: flex; flex-direction: column; justify-content: center; max-width: 1400px;">
+      <div class="eyebrow" style="margin-bottom: 40px;">新世代旗艦模型</div>
+      <div class="display" style="color: var(--cream);">
+        Claude<br>
+        <span style="color: var(--coral);">Opus 4.7</span>
+      </div>
+      <div style="height: 48px;"></div>
+      <div class="subtitle" style="color: var(--gray-2); max-width: 900px;">
+        Anthropic 最新旗艦模型，正式上線——突破最艱難任務的天花板
+      </div>
+      <div style="margin-top: 88px; display: flex; gap: 64px; align-items: baseline;">
+        <div>
+          <div class="mono" style="font-size: 11px; letter-spacing: 0.2em; color: var(--gray-1);">DATE</div>
+          <div class="mono" style="font-size: 18px; color: var(--cream); margin-top: 8px;">2026.04.16</div>
+        </div>
+        <div style="width: 1px; height: 40px; background: rgba(245,240,235,0.2);"></div>
+        <div>
+          <div class="mono" style="font-size: 11px; letter-spacing: 0.2em; color: var(--gray-1);">API MODEL</div>
+          <div class="mono" style="font-size: 18px; color: var(--cream); margin-top: 8px;">claude-opus-4-7</div>
+        </div>
+        <div style="width: 1px; height: 40px; background: rgba(245,240,235,0.2);"></div>
+        <div>
+          <div class="mono" style="font-size: 11px; letter-spacing: 0.2em; color: var(--gray-1);">STATUS</div>
+          <div class="mono" style="font-size: 18px; color: var(--coral); margin-top: 8px;">● 全面上線</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════════════ Slide 02 | 目錄 ═══════════════ -->
+  <section class="slide" data-label="Agenda">
+    <div class="chrome">
+      <div class="tl">目錄 · AGENDA</div>
+      <div class="tr">CLAUDE OPUS 4.7</div>
+      <div class="bl">02 / 15</div>
+    </div>
+
+    <div style="display: grid; grid-template-columns: 420px 1fr; gap: 120px; height: 100%; padding-top: 40px;">
+      <div style="display: flex; flex-direction: column; justify-content: flex-start; padding-top: 40px;">
+        <div class="eyebrow" style="margin-bottom: 32px;">本場簡報</div>
+        <div class="title-xl">涵蓋<br>九個<br>重點</div>
+        <div style="margin-top: 56px; width: 48px; height: 2px; background: var(--coral-deep);"></div>
+        <div class="small" style="margin-top: 24px; max-width: 320px;">
+          從核心能力、視覺增強到實測表現、安全防護，一次了解 Opus 4.7 的全貌。
+        </div>
+      </div>
+
+      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0 80px; align-content: start; padding-top: 40px;">
+        <!-- agenda items -->
+        <div class="numbered-item"><div class="n">01</div><div><div class="title-m" style="font-size: 24px;">Opus 4.7 是什麼？</div><div class="small" style="margin-top: 4px;">模型定位與核心優勢</div></div></div>
+        <div class="numbered-item"><div class="n">02</div><div><div class="title-m" style="font-size: 24px;">核心能力升級</div><div class="small" style="margin-top: 4px;">指令、記憶、自主驗證</div></div></div>
+        <div class="numbered-item"><div class="n">03</div><div><div class="title-m" style="font-size: 24px;">多模態視覺增強</div><div class="small" style="margin-top: 4px;">3× 解析度突破</div></div></div>
+        <div class="numbered-item"><div class="n">04</div><div><div class="title-m" style="font-size: 24px;">真實工作場景</div><div class="small" style="margin-top: 4px;">軟工、財務、文件推理</div></div></div>
+        <div class="numbered-item"><div class="n">05</div><div><div class="title-m" style="font-size: 24px;">代理任務能力</div><div class="small" style="margin-top: 4px;">長時程獨立作業</div></div></div>
+        <div class="numbered-item"><div class="n">06</div><div><div class="title-m" style="font-size: 24px;">安全性設計</div><div class="small" style="margin-top: 4px;">對齊評估與可信度</div></div></div>
+        <div class="numbered-item"><div class="n">07</div><div><div class="title-m" style="font-size: 24px;">網路安全新機制</div><div class="small" style="margin-top: 4px;">Project Glasswing</div></div></div>
+        <div class="numbered-item"><div class="n">08</div><div><div class="title-m" style="font-size: 24px;">同步推出的更新</div><div class="small" style="margin-top: 4px;">三項重要功能</div></div></div>
+        <div class="numbered-item"><div class="n">09</div><div><div class="title-m" style="font-size: 24px;">遷移與用戶回饋</div><div class="small" style="margin-top: 4px;">從 4.6 升級路徑</div></div></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════════════ Slide 03 | 認識 Opus 4.7 ═══════════════ -->
+  <section class="slide" data-label="認識 Opus 4.7">
+    <div class="chrome">
+      <div class="tl">01 · 認識模型</div>
+      <div class="tr">WHAT IS OPUS 4.7</div>
+      <div class="bl">03 / 15</div>
+      <div class="br">OPUS 4.6 → OPUS 4.7</div>
+    </div>
+
+    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 100px; height: 100%; align-items: center;">
+      <div>
+        <div class="eyebrow" style="margin-bottom: 24px;">認識 · Introducing</div>
+        <div class="title-xl">Opus 4.7<br>是什麼？</div>
+        <div class="subtitle" style="margin-top: 40px; max-width: 580px;">
+          Opus 4.6 的直接升級版——在最艱難的任務上，全面突破過去的天花板。
+        </div>
+        <div class="callout" style="margin-top: 48px; max-width: 600px;">
+          「我可以放心地把過去需要密切監督的程式任務，直接交給 Opus 4.7 獨立完成。」
+        </div>
+      </div>
+
+      <div style="display: flex; flex-direction: column; gap: 24px;">
+        <div class="card">
+          <div style="display: flex; align-items: flex-start; gap: 24px;">
+            <svg class="icn" viewBox="0 0 40 40"><circle cx="20" cy="20" r="14"/><circle cx="20" cy="20" r="2" fill="currentColor"/></svg>
+            <div>
+              <div class="title-m" style="font-size: 28px;">精準度</div>
+              <div class="body" style="margin-top: 8px; color: var(--gray-1); font-size: 18px;">在「進階軟體工程」最高難度任務上，取得顯著進步。</div>
+            </div>
+          </div>
+        </div>
+        <div class="card">
+          <div style="display: flex; align-items: flex-start; gap: 24px;">
+            <svg class="icn" viewBox="0 0 40 40"><path d="M8 20h24M20 8v24"/><circle cx="20" cy="20" r="14"/></svg>
+            <div>
+              <div class="title-m" style="font-size: 28px;">自主性</div>
+              <div class="body" style="margin-top: 8px; color: var(--gray-1); font-size: 18px;">可獨立執行過去需要密切監督的艱難程式任務。</div>
+            </div>
+          </div>
+        </div>
+        <div class="card">
+          <div style="display: flex; align-items: flex-start; gap: 24px;">
+            <svg class="icn" viewBox="0 0 40 40"><path d="M10 14h20M10 20h20M10 26h14"/><path d="M28 26l3 3 5-5"/></svg>
+            <div>
+              <div class="title-m" style="font-size: 28px;">一致性</div>
+              <div class="body" style="margin-top: 8px; color: var(--gray-1); font-size: 18px;">嚴謹處理長時間任務，回報前自動驗證輸出結果。</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════════════ Slide 04 | 指令遵循 ═══════════════ -->
+  <section class="slide" data-label="指令遵循">
+    <div class="chrome">
+      <div class="tl">02 · 核心能力升級 (一)</div>
+      <div class="tr">INSTRUCTION FOLLOWING</div>
+      <div class="bl">04 / 15</div>
+    </div>
+
+    <div class="section-head" style="margin-top: 40px;">
+      <div class="num">CAPABILITY · 01</div>
+      <div class="rule"></div>
+    </div>
+
+    <div style="display: grid; grid-template-columns: 1fr 1.1fr; gap: 100px; align-items: start;">
+      <div>
+        <div class="title-xl">更精準的<br>指令理解</div>
+        <div class="subtitle" style="margin-top: 32px;">
+          字面意義的遵從，帶來更可預期的結果。
+        </div>
+        <div class="mt-l" style="display: flex; flex-direction: column; gap: 14px; max-width: 520px;">
+          <div class="bullet-row"><div>Opus 4.7 在「遵循指令」上有質的飛躍</div></div>
+          <div class="bullet-row"><div>不寬鬆詮釋、不跳過步驟——而是逐條字面執行</div></div>
+          <div class="bullet-row"><div>為舊版模型編寫的 prompt 可能產生不同結果</div></div>
+        </div>
+        <div class="callout mt-l" style="max-width: 540px; font-size: 18px;">
+          建議重新調整提示詞與工具設定，以配合 4.7 更嚴謹的執行風格。
+        </div>
+      </div>
+
+      <div style="display: flex; flex-direction: column; gap: 20px;">
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
+          <div class="card" style="padding: 28px;">
+            <div class="mono" style="font-size: 11px; letter-spacing: 0.2em; color: var(--gray-1);">BEFORE · 舊模型</div>
+            <div class="title-m" style="font-size: 22px; margin-top: 12px;">模糊執行</div>
+            <div style="margin-top: 20px; padding: 16px; background: var(--cream-deep); border-radius: 3px; font-family: 'JetBrains Mono', monospace; font-size: 12px; line-height: 1.6; color: var(--ink-soft);">
+              <div style="color: var(--gray-1);"># prompt:</div>
+              <div>不要修改 config.ts</div>
+              <br>
+              <div style="color: var(--coral-deep);">→ 為了讓 build 通過，<br>&nbsp;&nbsp;&nbsp;擅自修改了 config.ts</div>
+            </div>
+          </div>
+          <div class="card" style="padding: 28px; border-color: var(--coral-deep);">
+            <div class="mono" style="font-size: 11px; letter-spacing: 0.2em; color: var(--coral-deep);">AFTER · OPUS 4.7</div>
+            <div class="title-m" style="font-size: 22px; margin-top: 12px;">精確執行</div>
+            <div style="margin-top: 20px; padding: 16px; background: var(--cream-deep); border-radius: 3px; font-family: 'JetBrains Mono', monospace; font-size: 12px; line-height: 1.6;">
+              <div style="color: var(--gray-1);"># prompt:</div>
+              <div>不要修改 config.ts</div>
+              <br>
+              <div style="color: var(--coral-deep);">→ 嚴守約束，改以<br>&nbsp;&nbsp;&nbsp;其他檔案解決問題<br>&nbsp;&nbsp;&nbsp;並回報受限決策</div>
+            </div>
+          </div>
+        </div>
+
+        <div style="display: flex; gap: 14px; padding: 20px 24px; background: var(--ink); color: var(--cream); border-radius: 4px; align-items: center;">
+          <div class="dot" style="background: var(--coral);"></div>
+          <div class="mono" style="font-size: 13px; letter-spacing: 0.08em;">LITERAL · SPEC-COMPLIANT · PREDICTABLE</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════════════ Slide 05 | 記憶與長期任務 ═══════════════ -->
+  <section class="slide" data-label="記憶與長期任務">
+    <div class="chrome">
+      <div class="tl">02 · 核心能力升級 (二)</div>
+      <div class="tr">MEMORY & LONG-HORIZON TASKS</div>
+      <div class="bl">05 / 15</div>
+    </div>
+
+    <div class="section-head" style="margin-top: 40px;">
+      <div class="num">CAPABILITY · 02</div>
+      <div class="rule"></div>
+    </div>
+
+    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 100px;">
+      <div>
+        <div class="title-xl">跨階段記憶，<br>連貫長期工作</div>
+        <div class="subtitle" style="margin-top: 32px;">不再每次從零開始。</div>
+        <div class="mt-l" style="display: flex; flex-direction: column; gap: 14px; max-width: 560px;">
+          <div class="bullet-row"><div>更善用「檔案系統記憶」，跨階段保留關鍵筆記</div></div>
+          <div class="bullet-row"><div>在多回合任務中，記得先前的脈絡與決策</div></div>
+          <div class="bullet-row"><div>新任務所需的前置說明大幅減少</div></div>
+          <div class="bullet-row"><div>讓代理工作流程更加流暢、連貫</div></div>
+        </div>
+      </div>
+      <div style="padding-top: 16px;">
+        <div class="mono" style="font-size: 11px; letter-spacing: 0.2em; color: var(--gray-1); margin-bottom: 20px;">MEMORY CONTINUITY · SESSION TIMELINE</div>
+        <div style="display: flex; flex-direction: column; gap: 16px;">
+          <div class="session-node">
+            <div class="mono" style="font-size: 11px; letter-spacing: 0.16em; color: var(--coral-deep);">SESSION 01 · MON</div>
+            <div class="title-m" style="font-size: 20px; margin-top: 8px;">建立架構決策</div>
+            <div class="small" style="margin-top: 6px;">記錄：選用 PostgreSQL、採用事件來源模式</div>
+          </div>
+          <div style="display: flex; justify-content: center; color: var(--coral-deep);">
+            <svg width="24" height="32" viewBox="0 0 24 32" fill="none" stroke="currentColor" stroke-width="1.4">
+              <path d="M12 4v24M6 22l6 6 6-6"/>
+            </svg>
+          </div>
+          <div class="session-node">
+            <div class="mono" style="font-size: 11px; letter-spacing: 0.16em; color: var(--coral-deep);">SESSION 02 · WED</div>
+            <div class="title-m" style="font-size: 20px; margin-top: 8px;">延續脈絡</div>
+            <div class="small" style="margin-top: 6px;">記得事件來源決策，直接實作相容 schema</div>
+          </div>
+          <div style="display: flex; justify-content: center; color: var(--coral-deep);">
+            <svg width="24" height="32" viewBox="0 0 24 32" fill="none" stroke="currentColor" stroke-width="1.4">
+              <path d="M12 4v24M6 22l6 6 6-6"/>
+            </svg>
+          </div>
+          <div class="session-node active">
+            <div class="mono" style="font-size: 11px; letter-spacing: 0.16em; color: var(--coral-deep);">SESSION 03 · FRI · ACTIVE</div>
+            <div class="title-m" style="font-size: 20px; margin-top: 8px;">自主整合驗收</div>
+            <div class="small" style="margin-top: 6px;">跨越三日脈絡，自動執行整合測試</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════════════ Slide 06 | 自主驗證 ═══════════════ -->
+  <section class="slide" data-label="自主驗證">
+    <div class="chrome">
+      <div class="tl">02 · 核心能力升級 (三)</div>
+      <div class="tr">SELF-VERIFICATION</div>
+      <div class="bl">06 / 15</div>
+    </div>
+
+    <div class="section-head" style="margin-top: 40px;">
+      <div class="num">CAPABILITY · 03</div>
+      <div class="rule"></div>
+    </div>
+
+    <div style="display: grid; grid-template-columns: 1fr 1.2fr; gap: 100px; align-items: center;">
+      <div>
+        <div class="title-xl">回報前，<br>先自我驗證</div>
+        <div class="subtitle" style="margin-top: 32px;">發現問題在規劃階段，而非執行後。</div>
+        <div class="mt-l" style="display: flex; flex-direction: column; gap: 14px; max-width: 540px;">
+          <div class="bullet-row"><div>在規劃階段主動找出自身的邏輯缺陷</div></div>
+          <div class="bullet-row"><div>執行前先驗證思路，大幅減少錯誤輸出</div></div>
+          <div class="bullet-row"><div>提高正確率，也加速整體執行效率</div></div>
+        </div>
+        <div class="callout mt-l" style="max-width: 540px;">
+          早期測試者形容：「這是遠超前代的飛躍。」
+        </div>
+      </div>
+
+      <div>
+        <div class="mono" style="font-size: 11px; letter-spacing: 0.2em; color: var(--gray-1); margin-bottom: 32px;">VERIFICATION LOOP</div>
+        <svg viewBox="0 0 600 520" style="width: 100%; height: auto; max-height: 560px;">
+          <defs>
+            <marker id="arr" viewBox="0 0 10 10" refX="7" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+              <path d="M0,0 L10,5 L0,10 z" fill="#C17E5A"/>
+            </marker>
+          </defs>
+          <!-- ring -->
+          <circle cx="300" cy="260" r="200" fill="none" stroke="#1A1A1A" stroke-opacity="0.1" stroke-dasharray="3 6"/>
+          <!-- nodes -->
+          <g font-family="Noto Sans TC, Inter, sans-serif">
+            <!-- top: 規劃 -->
+            <g>
+              <circle cx="300" cy="60" r="54" fill="#FFFCF7" stroke="#C17E5A" stroke-width="1.5"/>
+              <text x="300" y="56" text-anchor="middle" font-size="11" fill="#8B8680" font-family="JetBrains Mono, monospace" letter-spacing="2">01</text>
+              <text x="300" y="78" text-anchor="middle" font-size="20" font-weight="700" fill="#1A1A1A">規劃</text>
+            </g>
+            <!-- right: 自我審查 -->
+            <g>
+              <circle cx="480" cy="200" r="54" fill="#FFF8F1" stroke="#C17E5A" stroke-width="2"/>
+              <text x="480" y="196" text-anchor="middle" font-size="11" fill="#C17E5A" font-family="JetBrains Mono, monospace" letter-spacing="2">02 ★</text>
+              <text x="480" y="218" text-anchor="middle" font-size="18" font-weight="700" fill="#1A1A1A">自我審查</text>
+            </g>
+            <!-- bottom-right: 執行 -->
+            <g>
+              <circle cx="440" cy="400" r="54" fill="#FFFCF7" stroke="#C17E5A" stroke-width="1.5"/>
+              <text x="440" y="396" text-anchor="middle" font-size="11" fill="#8B8680" font-family="JetBrains Mono, monospace" letter-spacing="2">03</text>
+              <text x="440" y="418" text-anchor="middle" font-size="20" font-weight="700" fill="#1A1A1A">執行</text>
+            </g>
+            <!-- bottom-left: 驗證 -->
+            <g>
+              <circle cx="160" cy="400" r="54" fill="#FFFCF7" stroke="#C17E5A" stroke-width="1.5"/>
+              <text x="160" y="396" text-anchor="middle" font-size="11" fill="#8B8680" font-family="JetBrains Mono, monospace" letter-spacing="2">04</text>
+              <text x="160" y="418" text-anchor="middle" font-size="20" font-weight="700" fill="#1A1A1A">驗證</text>
+            </g>
+            <!-- left: 回報 -->
+            <g>
+              <circle cx="120" cy="200" r="54" fill="#FFFCF7" stroke="#C17E5A" stroke-width="1.5"/>
+              <text x="120" y="196" text-anchor="middle" font-size="11" fill="#8B8680" font-family="JetBrains Mono, monospace" letter-spacing="2">05</text>
+              <text x="120" y="218" text-anchor="middle" font-size="20" font-weight="700" fill="#1A1A1A">回報</text>
+            </g>
+            <!-- arrows along the ring, clockwise -->
+            <path d="M348 82 A200 200 0 0 1 446 158" fill="none" stroke="#C17E5A" stroke-width="1.5" marker-end="url(#arr)"/>
+            <path d="M478 256 A200 200 0 0 1 462 350" fill="none" stroke="#C17E5A" stroke-width="1.5" marker-end="url(#arr)"/>
+            <path d="M388 428 A200 200 0 0 1 212 428" fill="none" stroke="#C17E5A" stroke-width="1.5" marker-end="url(#arr)"/>
+            <path d="M138 350 A200 200 0 0 1 122 256" fill="none" stroke="#C17E5A" stroke-width="1.5" marker-end="url(#arr)"/>
+            <path d="M154 158 A200 200 0 0 1 252 82" fill="none" stroke="#C17E5A" stroke-width="1.5" marker-end="url(#arr)"/>
+          </g>
+        </svg>
+        <div class="small" style="text-align: center; margin-top: -8px;">
+          <span class="mono" style="color: var(--coral-deep);">★</span> 新增步驟：規劃後、執行前的自我審查
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════════════ Slide 07 | 多模態視覺增強 ═══════════════ -->
+  <section class="slide" data-label="多模態視覺">
+    <div class="chrome">
+      <div class="tl">03 · 多模態視覺</div>
+      <div class="tr">VISION · HIGH RESOLUTION</div>
+      <div class="bl">07 / 15</div>
+    </div>
+
+    <div class="section-head" style="margin-top: 40px;">
+      <div class="num">VISION</div>
+      <div class="rule"></div>
+    </div>
+
+    <div style="display: grid; grid-template-columns: 1fr 1.1fr; gap: 100px; align-items: start;">
+      <div>
+        <div class="title-xl">看得更清楚，<br>理解得更深</div>
+        <div class="subtitle" style="margin-top: 32px;">高解析度視覺能力，全面升級。</div>
+
+        <div style="display: flex; gap: 48px; margin-top: 48px;">
+          <div class="stat">
+            <div class="num"><span class="accent">2,576</span></div>
+            <div class="label">長邊最高像素 (px)<br>約 3.75 百萬像素</div>
+          </div>
+          <div class="stat">
+            <div class="num"><span class="accent">3×</span></div>
+            <div class="label">較先前 Claude 模型<br>解析度提升</div>
+          </div>
+        </div>
+
+        <div class="mt-l" style="display: flex; flex-direction: column; gap: 12px; max-width: 540px;">
+          <div class="mono" style="font-size: 11px; letter-spacing: 0.2em; color: var(--gray-1);">解鎖應用場景</div>
+          <div class="bullet-row"><div>電腦操作代理——閱讀密集截圖</div></div>
+          <div class="bullet-row"><div>複雜圖表的資料擷取</div></div>
+          <div class="bullet-row"><div>像素級精準度的參考作業</div></div>
+          <div class="bullet-row"><div>化學結構辨識、專利技術圖解讀</div></div>
+        </div>
+      </div>
+
+      <div>
+        <div class="mono" style="font-size: 11px; letter-spacing: 0.2em; color: var(--gray-1); margin-bottom: 20px;">RESOLUTION COMPARISON</div>
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
+          <div>
+            <div class="placeholder" style="aspect-ratio: 1/1; filter: blur(4px); background: repeating-linear-gradient(135deg, rgba(26,26,26,0.06) 0px, rgba(26,26,26,0.06) 20px, var(--cream-deep) 20px, var(--cream-deep) 40px);">
+              <div style="color: var(--gray-1); font-size: 10px;">LOW RES · PRIOR</div>
+            </div>
+            <div class="mono" style="font-size: 11px; letter-spacing: 0.14em; color: var(--gray-1); margin-top: 10px;">PRIOR MODELS</div>
+            <div class="small" style="margin-top: 2px;">約 1.2 MP</div>
+          </div>
+          <div>
+            <div class="placeholder" style="aspect-ratio: 1/1; border: 2px solid var(--coral-deep);">
+              <div style="color: var(--coral-deep); font-size: 10px; font-family: 'JetBrains Mono', monospace; letter-spacing: 0.14em;">2576 × 1456 PX</div>
+            </div>
+            <div class="mono" style="font-size: 11px; letter-spacing: 0.14em; color: var(--coral-deep); margin-top: 10px;">● OPUS 4.7</div>
+            <div class="small" style="margin-top: 2px; color: var(--ink-soft);">約 3.75 MP</div>
+          </div>
+        </div>
+
+        <div style="margin-top: 32px; padding: 24px 28px; background: var(--ink); color: var(--cream); border-radius: 4px;">
+          <div class="mono" style="font-size: 11px; letter-spacing: 0.2em; color: var(--coral);">USE CASE EXAMPLE</div>
+          <div style="margin-top: 10px; font-size: 17px; line-height: 1.5;">
+            判讀專利圖中的 6pt 標註、區別化學結構式中相似的官能基——<br>過去需人工放大的細節，現在直接處理。
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════════════ Slide 08 | 真實工作表現 ═══════════════ -->
+  <section class="slide" data-label="真實工作表現">
+    <div class="chrome">
+      <div class="tl">04 · 真實工作表現</div>
+      <div class="tr">REAL-WORLD BENCHMARKS</div>
+      <div class="bl">08 / 15</div>
+    </div>
+
+    <div style="display: flex; align-items: baseline; gap: 28px; margin-top: 32px;">
+      <div class="mono" style="font-size: 14px; letter-spacing: 0.2em; color: var(--coral-deep); font-weight: 500;">BENCHMARKS</div>
+      <div style="flex: 1; height: 1px; background: var(--ink); opacity: 0.15;"></div>
+    </div>
+
+    <div style="display: grid; grid-template-columns: 1fr 360px; gap: 80px; margin-top: 24px; align-items: start;">
+      <div>
+        <div class="title-xl" style="font-size: 72px;">在真實工作中，<br>表現如何？</div>
+      </div>
+      <div class="subtitle" style="padding-top: 40px;">
+        多個領域的第三方實測結果，全面領先 Opus 4.6。
+      </div>
+    </div>
+
+    <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 28px; margin-top: 72px;">
+      <!-- Software -->
+      <div class="card" style="padding: 36px;">
+        <div style="display: flex; align-items: center; gap: 14px;">
+          <svg class="icn" style="width: 28px; height: 28px;" viewBox="0 0 40 40"><path d="M14 14l-6 6 6 6M26 14l6 6-6 6M22 10l-4 20"/></svg>
+          <div class="mono" style="font-size: 11px; letter-spacing: 0.2em; color: var(--gray-1);">軟體工程</div>
+        </div>
+        <div class="title-m" style="margin-top: 16px; font-size: 28px;">Software<br>Engineering</div>
+        <div style="margin-top: 32px; padding: 20px 0; border-top: 1px solid rgba(26,26,26,0.1);">
+          <div class="stat"><div class="num" style="font-size: 64px;"><span class="accent">+13%</span></div>
+          <div class="label">SWE-bench 解決率<br>對比 Opus 4.6</div></div>
+        </div>
+        <div style="margin-top: 20px; padding: 20px 0; border-top: 1px solid rgba(26,26,26,0.1);">
+          <div style="display: flex; gap: 24px; align-items: baseline;">
+            <div>
+              <div style="font-family: 'Inter'; font-weight: 700; font-size: 44px; color: var(--coral-deep); line-height: 1;">70%</div>
+              <div class="small" style="margin-top: 6px;">Opus 4.7</div>
+            </div>
+            <div style="color: var(--gray-2); font-size: 24px;">vs</div>
+            <div>
+              <div style="font-family: 'Inter'; font-weight: 500; font-size: 44px; color: var(--gray-1); line-height: 1;">58%</div>
+              <div class="small" style="margin-top: 6px;">Opus 4.6</div>
+            </div>
+          </div>
+          <div class="small" style="margin-top: 10px;">Cursor 內部 benchmark</div>
+        </div>
+      </div>
+
+      <!-- Finance -->
+      <div class="card" style="padding: 36px;">
+        <div style="display: flex; align-items: center; gap: 14px;">
+          <svg class="icn" style="width: 28px; height: 28px;" viewBox="0 0 40 40"><path d="M8 30l8-10 6 4 10-14M32 10h-6M32 10v6"/></svg>
+          <div class="mono" style="font-size: 11px; letter-spacing: 0.2em; color: var(--gray-1);">財務分析</div>
+        </div>
+        <div class="title-m" style="margin-top: 16px; font-size: 28px;">Financial<br>Analysis</div>
+
+        <div style="margin-top: 32px; padding: 20px 0; border-top: 1px solid rgba(26,26,26,0.1);">
+          <div class="mono" style="font-size: 11px; letter-spacing: 0.14em; color: var(--coral-deep);">FINANCE AGENT</div>
+          <div class="title-m" style="margin-top: 8px; font-size: 22px;">達到頂尖水準</div>
+        </div>
+        <div style="margin-top: 20px; padding: 20px 0; border-top: 1px solid rgba(26,26,26,0.1);">
+          <div class="mono" style="font-size: 11px; letter-spacing: 0.14em; color: var(--coral-deep);">GDPval-AA</div>
+          <div class="title-m" style="margin-top: 8px; font-size: 22px;">第三方評估表現<br>最佳 No.1</div>
+          <div class="small" style="margin-top: 8px;">跨金融、法律等領域</div>
+        </div>
+        <div style="margin-top: 20px; padding: 20px 0; border-top: 1px solid rgba(26,26,26,0.1);">
+          <div class="small" style="color: var(--ink-soft);">
+            更嚴謹的財務分析，更專業的報告產出。
+          </div>
+        </div>
+      </div>
+
+      <!-- Document -->
+      <div class="card" style="padding: 36px;">
+        <div style="display: flex; align-items: center; gap: 14px;">
+          <svg class="icn" style="width: 28px; height: 28px;" viewBox="0 0 40 40"><path d="M10 8h16l6 6v18H10zM26 8v6h6M14 20h14M14 26h10"/></svg>
+          <div class="mono" style="font-size: 11px; letter-spacing: 0.2em; color: var(--gray-1);">文件推理</div>
+        </div>
+        <div class="title-m" style="margin-top: 16px; font-size: 28px;">Document<br>Reasoning</div>
+
+        <div style="margin-top: 32px; padding: 20px 0; border-top: 1px solid rgba(26,26,26,0.1);">
+          <div class="stat"><div class="num" style="font-size: 56px;"><span class="accent">-21%</span></div>
+          <div class="label">Databricks OfficeQA Pro<br>錯誤率對比 4.6</div></div>
+        </div>
+        <div style="margin-top: 20px; padding: 20px 0; border-top: 1px solid rgba(26,26,26,0.1);">
+          <div class="stat"><div class="num" style="font-size: 56px;"><span class="accent">90.9%</span></div>
+          <div class="label">BigLaw Bench (法律)<br>高努力模式正確率</div></div>
+        </div>
+        <div style="margin-top: 20px; padding: 20px 0; border-top: 1px solid rgba(26,26,26,0.1);">
+          <div class="small" style="color: var(--ink-soft);">
+            能正確區分「轉讓條款」與「控制變更條款」。
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════════════ Slide 09 | 代理任務能力 ═══════════════ -->
+  <section class="slide" data-label="代理任務能力">
+    <div class="chrome">
+      <div class="tl">05 · 代理任務能力</div>
+      <div class="tr">AGENTIC CAPABILITIES</div>
+      <div class="bl">09 / 15</div>
+    </div>
+
+    <div class="section-head" style="margin-top: 40px;">
+      <div class="num">AGENTIC · LONG-HORIZON</div>
+      <div class="rule"></div>
+    </div>
+
+    <div style="display: grid; grid-template-columns: 1fr 1.3fr; gap: 100px; align-items: start;">
+      <div>
+        <div class="title-xl">真正能獨立<br>作業的 AI 代理</div>
+        <div class="subtitle" style="margin-top: 32px;">更少中斷、更高可靠度、更長工作時程。</div>
+        <div class="mt-l" style="display: flex; flex-direction: column; gap: 14px; max-width: 520px;">
+          <div class="bullet-row"><div>連續工作數小時不失去連貫性（Devin 測試）</div></div>
+          <div class="bullet-row"><div>遇到困難任務時「不放棄」，持續推進</div></div>
+          <div class="bullet-row"><div>工具呼叫準確度提升雙位數百分比</div></div>
+          <div class="bullet-row"><div>首個通過「隱式需求測試」的模型——理解未明說的任務需求</div></div>
+        </div>
+      </div>
+
+      <div>
+        <!-- Horizon bar -->
+        <div class="mono" style="font-size: 11px; letter-spacing: 0.2em; color: var(--gray-1); margin-bottom: 16px;">WORK HORIZON · CONTINUOUS OPERATION</div>
+        <div style="position: relative; padding: 28px; background: #FFFCF7; border: 1px solid rgba(26,26,26,0.08); border-radius: 4px;">
+          <div style="display: flex; align-items: center; gap: 0; height: 40px;">
+            <div style="flex: 1; height: 10px; background: linear-gradient(90deg, var(--coral-soft) 0%, var(--coral-deep) 100%); border-radius: 2px; position: relative;">
+              <div style="position: absolute; left: 0; top: -24px; font-family: 'JetBrains Mono', monospace; font-size: 11px; color: var(--gray-1); letter-spacing: 0.12em;">00:00</div>
+              <div style="position: absolute; right: 0; top: -24px; font-family: 'JetBrains Mono', monospace; font-size: 11px; color: var(--coral-deep); letter-spacing: 0.12em; font-weight: 500;">數小時持續作業 ●</div>
+            </div>
+          </div>
+          <div style="margin-top: 22px; display: flex; justify-content: space-between; gap: 16px;">
+            <div style="flex: 1; padding: 14px; background: var(--cream-deep); border-radius: 3px;">
+              <div class="mono" style="font-size: 10px; letter-spacing: 0.14em; color: var(--gray-1);">T+00:15</div>
+              <div style="font-size: 14px; margin-top: 4px;">展開任務規劃</div>
+            </div>
+            <div style="flex: 1; padding: 14px; background: var(--cream-deep); border-radius: 3px;">
+              <div class="mono" style="font-size: 10px; letter-spacing: 0.14em; color: var(--gray-1);">T+01:20</div>
+              <div style="font-size: 14px; margin-top: 4px;">遇到阻塞，自行排障</div>
+            </div>
+            <div style="flex: 1; padding: 14px; background: #FFF8F1; border: 1px solid var(--coral-deep); border-radius: 3px;">
+              <div class="mono" style="font-size: 10px; letter-spacing: 0.14em; color: var(--coral-deep);">T+03:45</div>
+              <div style="font-size: 14px; margin-top: 4px;">自我驗收後提交</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Tool-use stats -->
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin-top: 36px;">
+          <div class="card" style="padding: 28px;">
+            <div class="mono" style="font-size: 11px; letter-spacing: 0.14em; color: var(--gray-1);">NOTION AGENT</div>
+            <div class="stat" style="margin-top: 8px;"><div class="num" style="font-size: 56px;"><span class="accent">+14%</span></div>
+            <div class="label">工具呼叫精準度</div></div>
+            <div class="small" style="margin-top: 14px; color: var(--ink-soft);">工具錯誤率降低約 <strong>⅓</strong></div>
+          </div>
+          <div class="card" style="padding: 28px;">
+            <div class="mono" style="font-size: 11px; letter-spacing: 0.14em; color: var(--gray-1);">GENSPARK</div>
+            <div class="title-m" style="font-size: 22px; margin-top: 12px;">最高「每次<br>工具呼叫<br>品質比」</div>
+            <div class="small" style="margin-top: 12px; color: var(--ink-soft);">同類模型中表現最佳</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════════════ Slide 10 | 安全性設計 ═══════════════ -->
+  <section class="slide" data-label="安全性設計">
+    <div class="chrome">
+      <div class="tl">06 · 安全性</div>
+      <div class="tr">SAFETY & ALIGNMENT</div>
+      <div class="bl">10 / 15</div>
+    </div>
+
+    <div class="section-head" style="margin-top: 40px;">
+      <div class="num">SAFETY</div>
+      <div class="rule"></div>
+    </div>
+
+    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 100px; align-items: start;">
+      <div>
+        <div class="title-xl">更可信賴的 AI</div>
+        <div class="subtitle" style="margin-top: 32px;">安全性與對齊評估。</div>
+
+        <div class="mt-l" style="display: flex; flex-direction: column; gap: 24px; max-width: 560px;">
+          <div style="padding: 20px 0; border-top: 1px solid rgba(26,26,26,0.12);">
+            <div class="mono" style="font-size: 11px; letter-spacing: 0.18em; color: var(--coral-deep);">△ 改善項目</div>
+            <div style="margin-top: 10px; font-size: 19px; line-height: 1.5;">
+              誠信度提升、對惡意 <span class="mono" style="font-size: 16px;">Prompt Injection</span> 攻擊的抵抗力加強
+            </div>
+          </div>
+          <div style="padding: 20px 0; border-top: 1px solid rgba(26,26,26,0.12);">
+            <div class="mono" style="font-size: 11px; letter-spacing: 0.18em; color: var(--gray-1);">◇ 稍遜項目</div>
+            <div style="margin-top: 10px; font-size: 19px; line-height: 1.5; color: var(--ink-soft);">
+              對特定受管制物質的減害建議過於詳細
+            </div>
+          </div>
+          <div style="padding: 20px 0; border-top: 1px solid rgba(26,26,26,0.12); border-bottom: 1px solid rgba(26,26,26,0.12);">
+            <div class="mono" style="font-size: 11px; letter-spacing: 0.18em; color: var(--gray-1);">◎ 整體評估</div>
+            <div style="margin-top: 10px; font-size: 19px; line-height: 1.5;">
+              「大致上良好對齊，值得信賴。」
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Radar chart -->
+      <div>
+        <div class="mono" style="font-size: 11px; letter-spacing: 0.2em; color: var(--gray-1); margin-bottom: 20px;">SAFETY RADAR · OPUS 4.7 vs 4.6</div>
+        <svg viewBox="0 0 500 500" style="width: 100%; max-width: 520px;">
+          <!-- Grid -->
+          <g stroke="#1A1A1A" stroke-opacity="0.12" fill="none">
+            <polygon points="250,60 414,155 414,345 250,440 86,345 86,155"/>
+            <polygon points="250,110 370,180 370,320 250,390 130,320 130,180"/>
+            <polygon points="250,160 327,205 327,295 250,340 173,295 173,205"/>
+            <polygon points="250,210 283,229 283,271 250,290 217,271 217,229"/>
+          </g>
+          <!-- Axes -->
+          <g stroke="#1A1A1A" stroke-opacity="0.1">
+            <line x1="250" y1="60" x2="250" y2="440"/>
+            <line x1="86" y1="155" x2="414" y2="345"/>
+            <line x1="414" y1="155" x2="86" y2="345"/>
+          </g>
+          <!-- Opus 4.6 polygon (smaller, gray) -->
+          <polygon points="250,130 340,180 370,310 250,400 150,310 170,185"
+            fill="#8B8680" fill-opacity="0.12" stroke="#8B8680" stroke-width="1.4" stroke-dasharray="4 4"/>
+          <!-- Opus 4.7 polygon (larger, coral) -->
+          <polygon points="250,88 380,168 380,330 245,398 130,325 125,178"
+            fill="#C17E5A" fill-opacity="0.22" stroke="#C17E5A" stroke-width="2"/>
+          <!-- Vertex markers for 4.7 -->
+          <g fill="#C17E5A">
+            <circle cx="250" cy="88" r="4"/>
+            <circle cx="380" cy="168" r="4"/>
+            <circle cx="380" cy="330" r="4"/>
+            <circle cx="245" cy="398" r="4"/>
+            <circle cx="130" cy="325" r="4"/>
+            <circle cx="125" cy="178" r="4"/>
+          </g>
+          <!-- Labels -->
+          <g font-family="Noto Sans TC, Inter, sans-serif" fill="#1A1A1A" font-size="15" font-weight="500">
+            <text x="250" y="44" text-anchor="middle">誠信度</text>
+            <text x="430" y="150" text-anchor="start">抗注入</text>
+            <text x="430" y="355" text-anchor="start">對齊性</text>
+            <text x="250" y="464" text-anchor="middle">行為穩定</text>
+            <text x="70" y="355" text-anchor="end">無害性</text>
+            <text x="70" y="150" text-anchor="end">可控性</text>
+          </g>
+        </svg>
+        <div style="display: flex; gap: 32px; margin-top: 16px; padding: 16px 20px; background: #FFFCF7; border: 1px solid rgba(26,26,26,0.08); border-radius: 4px;">
+          <div style="display: flex; align-items: center; gap: 10px;">
+            <div style="width: 14px; height: 14px; background: #C17E5A;"></div>
+            <div class="mono" style="font-size: 12px; letter-spacing: 0.1em;">OPUS 4.7</div>
+          </div>
+          <div style="display: flex; align-items: center; gap: 10px;">
+            <div style="width: 14px; height: 14px; background: transparent; border: 1.4px dashed #8B8680;"></div>
+            <div class="mono" style="font-size: 12px; letter-spacing: 0.1em; color: var(--gray-1);">OPUS 4.6</div>
+          </div>
+          <div style="margin-left: auto;" class="small">
+            最佳對齊模型：<strong style="color: var(--ink);">Claude Mythos Preview</strong>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════════════ Slide 11 | Project Glasswing ═══════════════ -->
+  <section class="slide" data-label="Project Glasswing">
+    <div class="chrome">
+      <div class="tl">07 · 網路安全新機制</div>
+      <div class="tr">PROJECT GLASSWING</div>
+      <div class="bl">11 / 15</div>
+    </div>
+
+    <div class="section-head" style="margin-top: 40px;">
+      <div class="num">CYBERSECURITY</div>
+      <div class="rule"></div>
+    </div>
+
+    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 100px; align-items: start;">
+      <div>
+        <div class="eyebrow" style="margin-bottom: 20px;">Project Glasswing</div>
+        <div class="title-xl" style="font-size: 76px;">負責任地<br>釋出網路能力</div>
+        <div class="subtitle" style="margin-top: 32px;">安全防護優先，再談能力擴展。</div>
+        <div class="mt-l" style="display: flex; flex-direction: column; gap: 14px; max-width: 560px;">
+          <div class="bullet-row"><div>Anthropic 上週宣布 <strong>Project Glasswing</strong>，強調 AI 在網路安全中的風險與機會</div></div>
+          <div class="bullet-row"><div>Opus 4.7 是首個部署新防護措施的模型</div></div>
+          <div class="bullet-row"><div>其網路能力刻意控制在 <strong>低於 Mythos Preview</strong> 的水準</div></div>
+        </div>
+      </div>
+
+      <div style="display: flex; flex-direction: column; gap: 24px;">
+        <!-- Shield visualization -->
+        <div style="background: var(--ink); color: var(--cream); border-radius: 4px; padding: 40px; position: relative; overflow: hidden;">
+          <svg style="position: absolute; right: -40px; top: -40px; opacity: 0.18;" width="280" height="280" viewBox="0 0 280 280" fill="none">
+            <path d="M140 20 L240 60 L240 160 Q240 220 140 260 Q40 220 40 160 L40 60 Z"
+              stroke="#D4A574" stroke-width="1.5"/>
+            <path d="M140 60 L205 85 L205 160 Q205 200 140 225 Q75 200 75 160 L75 85 Z"
+              stroke="#D4A574" stroke-width="1" stroke-opacity="0.6"/>
+            <circle cx="140" cy="140" r="20" stroke="#D4A574" stroke-width="1.5"/>
+            <circle cx="140" cy="140" r="3" fill="#D4A574"/>
+          </svg>
+          <div class="mono" style="font-size: 11px; letter-spacing: 0.2em; color: var(--coral); position: relative;">防護機制 · GUARDRAIL</div>
+          <div class="title-m" style="font-size: 28px; margin-top: 12px; color: var(--cream); position: relative;">自動偵測 ·<br>阻擋禁止請求</div>
+          <div style="margin-top: 16px; font-size: 16px; line-height: 1.5; color: var(--gray-2); max-width: 320px; position: relative;">
+            內建偵測機制，自動阻擋「禁止或高風險」的網路安全使用請求。
+          </div>
+        </div>
+
+        <!-- Verification program -->
+        <div class="card" style="padding: 32px; border-color: var(--coral-deep);">
+          <div class="mono" style="font-size: 11px; letter-spacing: 0.2em; color: var(--coral-deep);">合法申請管道</div>
+          <div class="title-m" style="font-size: 24px; margin-top: 10px;">Cyber Verification Program</div>
+          <div style="margin-top: 14px; font-size: 16px; line-height: 1.55; color: var(--ink-soft);">
+            合法的資安專業人士——漏洞研究、滲透測試、紅隊——可申請授權使用完整網路能力。
+          </div>
+          <div style="display: flex; gap: 8px; margin-top: 20px; flex-wrap: wrap;">
+            <span class="mono" style="font-size: 11px; padding: 6px 12px; background: var(--cream-deep); border-radius: 2px; letter-spacing: 0.08em;">VULN RESEARCH</span>
+            <span class="mono" style="font-size: 11px; padding: 6px 12px; background: var(--cream-deep); border-radius: 2px; letter-spacing: 0.08em;">PEN TESTING</span>
+            <span class="mono" style="font-size: 11px; padding: 6px 12px; background: var(--cream-deep); border-radius: 2px; letter-spacing: 0.08em;">RED TEAM</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════════════ Slide 12 | 同步推出的更新 ═══════════════ -->
+  <section class="slide dark" data-label="同步推出的更新">
+    <div class="chrome">
+      <div class="tl" style="color: var(--coral);">08 · 同步更新</div>
+      <div class="tr">ADDITIONAL RELEASES</div>
+      <div class="bl">12 / 15</div>
+    </div>
+
+    <div style="display: flex; align-items: baseline; gap: 28px; margin-top: 40px;">
+      <div class="mono" style="font-size: 14px; letter-spacing: 0.2em; color: var(--coral); font-weight: 500;">RELEASE · TODAY</div>
+      <div style="flex: 1; height: 1px; background: var(--cream); opacity: 0.18;"></div>
+    </div>
+
+    <div style="margin-top: 40px; display: grid; grid-template-columns: 1fr 1fr; gap: 80px; align-items: end;">
+      <div class="title-xl" style="color: var(--cream);">不只是新模型，<br>還有更多</div>
+      <div class="subtitle" style="color: var(--gray-2); padding-bottom: 12px;">
+        一次釋出三項重要功能更新。
+      </div>
+    </div>
+
+    <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 24px; margin-top: 72px;">
+      <!-- Card 1: Effort levels -->
+      <div class="card" style="padding: 40px;">
+        <div class="mono" style="font-size: 11px; letter-spacing: 0.2em; color: var(--coral);">FEATURE · 01</div>
+        <div class="title-m" style="font-size: 28px; margin-top: 16px; color: var(--cream);">
+          更細緻的<br>「努力程度」控制
+        </div>
+        <div class="effort-bar">
+          <div class="on"></div>
+          <div class="on"></div>
+          <div class="on"></div>
+          <div class="on"></div>
+          <div class="new"></div>
+          <div></div>
+        </div>
+        <div style="display: flex; justify-content: space-between; font-family: 'JetBrains Mono', monospace; font-size: 11px; color: var(--gray-2); letter-spacing: 0.08em;">
+          <span>low</span>
+          <span>medium</span>
+          <span>high</span>
+          <span style="color: var(--coral); font-weight: 500;">xhigh ★</span>
+          <span>max</span>
+        </div>
+        <div style="margin-top: 28px; font-size: 16px; line-height: 1.55; color: var(--gray-2);">
+          新增 <span class="mono" style="color: var(--coral);">xhigh</span> 等級，介於 high 與 max 之間，讓開發者精細平衡推理深度與延遲。
+        </div>
+        <div style="margin-top: 20px; padding: 14px 16px; background: rgba(212,165,116,0.1); border-left: 2px solid var(--coral); font-size: 14px; color: var(--cream);">
+          Claude Code 預設已調升至 <span class="mono" style="color: var(--coral);">xhigh</span>
+        </div>
+      </div>
+
+      <!-- Card 2: Task Budgets -->
+      <div class="card" style="padding: 40px;">
+        <div class="mono" style="font-size: 11px; letter-spacing: 0.2em; color: var(--coral);">FEATURE · 02 · BETA</div>
+        <div class="title-m" style="font-size: 28px; margin-top: 16px; color: var(--cream);">
+          Task Budgets<br>（公開測試版）
+        </div>
+        <div style="margin-top: 32px; padding: 24px; background: var(--ink); border: 1px solid rgba(212,165,116,0.2); border-radius: 3px; font-family: 'JetBrains Mono', monospace; font-size: 13px; line-height: 1.7;">
+          <div style="color: #8B8680;"># set task budget</div>
+          <div style="color: var(--cream);">budget: <span style="color: var(--coral);">50_000</span></div>
+          <div style="color: var(--cream);">unit: <span style="color: var(--coral);">tokens</span></div>
+          <div style="color: #8B8680; margin-top: 8px;"># claude plans around it</div>
+        </div>
+        <div style="margin-top: 28px; font-size: 16px; line-height: 1.55; color: var(--gray-2);">
+          開發者可設定 token 使用預算，引導 Claude 在長任務中做出更合理的資源配置。
+        </div>
+      </div>
+
+      <!-- Card 3: /ultrareview -->
+      <div class="card" style="padding: 40px;">
+        <div class="mono" style="font-size: 11px; letter-spacing: 0.2em; color: var(--coral);">FEATURE · 03 · CLAUDE CODE</div>
+        <div class="title-m" style="font-size: 28px; margin-top: 16px; color: var(--cream);">
+          <span class="mono" style="font-size: 24px; color: var(--coral);">/ultrareview</span>
+        </div>
+        <div style="margin-top: 18px; font-size: 16px; line-height: 1.55; color: var(--gray-2);">
+          全新指令：針對程式碼變更進行深度審查，主動標記 bug 與設計問題。
+        </div>
+        <div style="margin-top: 24px; display: flex; flex-direction: column; gap: 10px;">
+          <div style="display: flex; justify-content: space-between; padding: 12px 16px; background: rgba(212,165,116,0.08); border-radius: 3px;">
+            <span style="font-size: 14px; color: var(--cream);">Pro / Max 用戶</span>
+            <span class="mono" style="font-size: 13px; color: var(--coral);">3 次免費體驗</span>
+          </div>
+          <div style="display: flex; justify-content: space-between; padding: 12px 16px; background: rgba(212,165,116,0.08); border-radius: 3px;">
+            <span style="font-size: 14px; color: var(--cream);">Max 獨享 · Auto Mode</span>
+            <span class="mono" style="font-size: 13px; color: var(--coral);">自主決策</span>
+          </div>
+        </div>
+        <div style="margin-top: 20px; font-size: 14px; color: var(--gray-2); line-height: 1.5;">
+          Auto Mode 讓 Claude 自主決策，長任務減少中斷。
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════════════ Slide 13 | 如何遷移 ═══════════════ -->
+  <section class="slide" data-label="如何遷移">
+    <div class="chrome">
+      <div class="tl">09 · 遷移指南</div>
+      <div class="tr">MIGRATION · 4.6 → 4.7</div>
+      <div class="bl">13 / 15</div>
+    </div>
+
+    <div class="section-head" style="margin-top: 40px;">
+      <div class="num">MIGRATION GUIDE</div>
+      <div class="rule"></div>
+    </div>
+
+    <div style="display: grid; grid-template-columns: 1fr 1.6fr; gap: 80px; align-items: start;">
+      <div>
+        <div class="title-xl" style="font-size: 72px;">升級前，<br>需要知道<br>的兩件事</div>
+        <div class="subtitle" style="margin-top: 32px;">提前規劃，確保平順過渡。</div>
+      </div>
+
+      <div>
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 28px;">
+          <div class="card" style="padding: 32px;">
+            <div style="display: flex; align-items: baseline; gap: 14px;">
+              <div style="font-family: 'Inter', sans-serif; font-weight: 700; font-size: 44px; color: var(--coral-deep); line-height: 1;">①</div>
+              <div class="mono" style="font-size: 11px; letter-spacing: 0.18em; color: var(--gray-1);">TOKENIZER</div>
+            </div>
+            <div class="title-m" style="font-size: 26px; margin-top: 14px;">更新的分詞器</div>
+            <div style="margin-top: 16px; font-size: 17px; line-height: 1.55; color: var(--ink-soft);">
+              相同輸入可能對應更多 token，增幅約
+            </div>
+            <div style="margin-top: 14px; padding: 16px 20px; background: var(--cream-deep); border-radius: 3px; display: flex; align-items: center; gap: 16px;">
+              <div style="font-family: 'Inter'; font-weight: 700; font-size: 36px; color: var(--coral-deep); line-height: 1;">1.0×–1.35×</div>
+              <div class="small" style="color: var(--ink-soft); line-height: 1.4;">依內容類型<br>而異</div>
+            </div>
+          </div>
+
+          <div class="card" style="padding: 32px;">
+            <div style="display: flex; align-items: baseline; gap: 14px;">
+              <div style="font-family: 'Inter', sans-serif; font-weight: 700; font-size: 44px; color: var(--coral-deep); line-height: 1;">②</div>
+              <div class="mono" style="font-size: 11px; letter-spacing: 0.18em; color: var(--gray-1);">REASONING DEPTH</div>
+            </div>
+            <div class="title-m" style="font-size: 26px; margin-top: 14px;">思考量增加</div>
+            <div style="margin-top: 16px; font-size: 17px; line-height: 1.55; color: var(--ink-soft);">
+              高努力等級下，代理任務後期回合思考更深，輸出 token 相對增加。
+            </div>
+            <div style="margin-top: 14px; font-size: 14px; color: var(--gray-1); line-height: 1.5;">
+              <strong style="color: var(--ink);">可控手段：</strong>調整 effort 參數 · 設定 task budget · 要求更簡潔
+            </div>
+          </div>
+        </div>
+
+        <!-- Summary -->
+        <div style="margin-top: 22px; padding: 20px 28px; background: #FFFCF7; border: 1px solid rgba(26,26,26,0.1); border-radius: 4px;">
+          <div class="mono" style="font-size: 11px; letter-spacing: 0.2em; color: var(--coral-deep);">建議步驟</div>
+          <div style="display: flex; gap: 28px; margin-top: 14px;">
+            <div style="flex: 1; font-size: 15px; line-height: 1.5;">
+              <span class="mono" style="color: var(--coral-deep); margin-right: 6px;">→</span>使用 <span class="mono" style="background: var(--cream-deep); padding: 2px 8px; border-radius: 2px; font-size: 13px;">claude-opus-4-7</span> 作為 API 模型名稱
+            </div>
+            <div style="flex: 1; font-size: 15px; line-height: 1.5;">
+              <span class="mono" style="color: var(--coral-deep); margin-right: 6px;">→</span>在真實流量上測量 token 差異後再切換
+            </div>
+            <div style="flex: 1; font-size: 15px; line-height: 1.5;">
+              <span class="mono" style="color: var(--coral-deep); margin-right: 6px;">→</span>詳見官方 Migration Guide
+            </div>
+          </div>
+        </div>
+
+        <!-- Pricing -->
+        <div class="price-strip" style="margin-top: 20px;">
+          <div>
+            <div class="tag">定價 · 與 Opus 4.6 相同</div>
+            <div class="val" style="margin-top: 6px;">不變</div>
+          </div>
+          <div style="width: 1px; height: 48px; background: rgba(245,240,235,0.18);"></div>
+          <div>
+            <div class="tag">INPUT</div>
+            <div class="val" style="margin-top: 6px;">$5<span class="unit">/ 1M tokens</span></div>
+          </div>
+          <div style="width: 1px; height: 48px; background: rgba(245,240,235,0.18);"></div>
+          <div>
+            <div class="tag">OUTPUT</div>
+            <div class="val" style="margin-top: 6px;">$25<span class="unit">/ 1M tokens</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════════════ Slide 14 | 早期用戶回饋 ═══════════════ -->
+  <section class="slide" data-label="早期用戶回饋">
+    <div class="chrome">
+      <div class="tl">10 · 早期回饋</div>
+      <div class="tr">EARLY FEEDBACK</div>
+      <div class="bl">14 / 15</div>
+    </div>
+
+    <div style="display: flex; align-items: baseline; gap: 40px; margin-top: 40px;">
+      <div>
+        <div class="eyebrow" style="margin-bottom: 20px;">TESTIMONIALS</div>
+        <div class="title-xl">他們怎麼說？</div>
+        <div class="subtitle" style="margin-top: 20px;">來自各領域開發者與企業的第一手回饋。</div>
+      </div>
+    </div>
+
+    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 28px; margin-top: 64px;">
+      <div class="quote-card">
+        <div class="q-text">
+          <span class="q-mark">“</span>能夠找出自身邏輯缺陷，並加速執行——這對金融科技平台來說可能帶來顛覆性的改變。
+        </div>
+        <div class="q-attr">
+          <strong style="color: var(--ink);">Clarence Huang</strong> · VP of Technology
+        </div>
+      </div>
+
+      <div class="quote-card">
+        <div class="q-text">
+          <span class="q-mark">“</span>它思考更深入，帶來更有主見的觀點，而非只是同意使用者。
+        </div>
+        <div class="q-attr">
+          <strong style="color: var(--ink);">Igor Ostrovsky</strong> · Co-Founder & CTO
+        </div>
+      </div>
+
+      <div class="quote-card">
+        <div class="q-text">
+          <span class="q-mark">“</span>這是我見過最好的儀表板建構模型，設計品味令人驚訝。它現在是我的日常首選。
+        </div>
+        <div class="q-attr">
+          <strong style="color: var(--ink);">Aj Orbach</strong> · Co-Founder & CEO
+        </div>
+      </div>
+
+      <div class="quote-card">
+        <div class="q-text">
+          <span class="q-mark">“</span>Opus 4.7 自主從零打造完整的 Rust 語音合成引擎——這是數個月的高級工程，由 AI 獨立完成。
+        </div>
+        <div class="q-attr">
+          <strong style="color: var(--ink);">Sean Ward</strong> · CEO & Co-Founder
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════════════ Slide 15 | CTA ═══════════════ -->
+  <section class="slide dark" data-label="CTA">
+    <div class="cover-halo" style="right: -480px; top: auto; bottom: -280px; width: 1100px; height: 1100px; opacity: 0.7;"></div>
+    <svg style="position: absolute; left: -120px; top: -120px; opacity: 0.35;" width="600" height="600" viewBox="0 0 600 600" fill="none">
+      <circle cx="300" cy="300" r="280" stroke="#D4A574" stroke-opacity="0.18"/>
+      <circle cx="300" cy="300" r="200" stroke="#D4A574" stroke-opacity="0.14"/>
+      <circle cx="300" cy="300" r="120" stroke="#D4A574" stroke-opacity="0.1"/>
+    </svg>
+
+    <div class="chrome">
+      <div class="tl">結語 · GET STARTED</div>
+      <div class="tr"><span class="dot"></span>AVAILABLE NOW</div>
+      <div class="bl">15 / 15</div>
+      <div class="br">anthropic.com</div>
+    </div>
+
+    <div style="position: relative; z-index: 2; height: 100%; display: flex; flex-direction: column; justify-content: center;">
+      <div class="eyebrow" style="margin-bottom: 32px;">CALL TO ACTION</div>
+      <div class="display" style="color: var(--cream); font-size: 132px;">
+        立即開始使用<br>
+        <span style="color: var(--coral);">Claude Opus 4.7</span>
+      </div>
+      <div class="subtitle" style="color: var(--gray-2); margin-top: 40px; max-width: 1000px;">
+        在所有 Claude 產品與主流雲端平台全面上線。
+      </div>
+
+      <!-- Platforms -->
+      <div style="margin-top: 64px; display: grid; grid-template-columns: repeat(5, 1fr); gap: 16px; max-width: 1400px;">
+        <div style="padding: 20px 24px; background: rgba(245,240,235,0.04); border: 1px solid rgba(245,240,235,0.12); border-radius: 4px;">
+          <div class="mono" style="font-size: 10px; letter-spacing: 0.18em; color: var(--coral);">OFFICIAL</div>
+          <div style="margin-top: 8px; font-size: 18px; font-weight: 600; color: var(--cream);">Claude 產品</div>
+        </div>
+        <div style="padding: 20px 24px; background: rgba(245,240,235,0.04); border: 1px solid rgba(245,240,235,0.12); border-radius: 4px;">
+          <div class="mono" style="font-size: 10px; letter-spacing: 0.18em; color: var(--coral);">DEVELOPER</div>
+          <div style="margin-top: 8px; font-size: 18px; font-weight: 600; color: var(--cream);">API</div>
+        </div>
+        <div style="padding: 20px 24px; background: rgba(245,240,235,0.04); border: 1px solid rgba(245,240,235,0.12); border-radius: 4px;">
+          <div class="mono" style="font-size: 10px; letter-spacing: 0.18em; color: var(--coral);">CLOUD</div>
+          <div style="margin-top: 8px; font-size: 18px; font-weight: 600; color: var(--cream);">Amazon Bedrock</div>
+        </div>
+        <div style="padding: 20px 24px; background: rgba(245,240,235,0.04); border: 1px solid rgba(245,240,235,0.12); border-radius: 4px;">
+          <div class="mono" style="font-size: 10px; letter-spacing: 0.18em; color: var(--coral);">CLOUD</div>
+          <div style="margin-top: 8px; font-size: 18px; font-weight: 600; color: var(--cream);">Google Vertex AI</div>
+        </div>
+        <div style="padding: 20px 24px; background: rgba(245,240,235,0.04); border: 1px solid rgba(245,240,235,0.12); border-radius: 4px;">
+          <div class="mono" style="font-size: 10px; letter-spacing: 0.18em; color: var(--coral);">CLOUD</div>
+          <div style="margin-top: 8px; font-size: 18px; font-weight: 600; color: var(--cream);">Microsoft Foundry</div>
+        </div>
+      </div>
+
+      <div style="margin-top: 56px; display: flex; gap: 56px; flex-wrap: wrap; align-items: baseline;">
+        <div>
+          <div class="mono" style="font-size: 11px; letter-spacing: 0.2em; color: var(--gray-1);">API MODEL NAME</div>
+          <div class="mono" style="font-size: 24px; color: var(--coral); margin-top: 8px; font-weight: 500;">claude-opus-4-7</div>
+        </div>
+        <div style="width: 1px; height: 48px; background: rgba(245,240,235,0.18);"></div>
+        <div>
+          <div class="mono" style="font-size: 11px; letter-spacing: 0.2em; color: var(--gray-1);">SECURITY PROFESSIONALS</div>
+          <div style="font-size: 18px; color: var(--cream); margin-top: 8px; font-weight: 500;">加入 Cyber Verification Program</div>
+        </div>
+        <div style="width: 1px; height: 48px; background: rgba(245,240,235,0.18);"></div>
+        <div>
+          <div class="mono" style="font-size: 11px; letter-spacing: 0.2em; color: var(--gray-1);">UPGRADE</div>
+          <div style="font-size: 18px; color: var(--cream); margin-top: 8px; font-weight: 500;">參閱 Migration Guide</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+</deck-stage>
+
+</body>
+</html>

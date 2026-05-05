@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<title>PK · ai-dev-pitfalls · 原版 vs Cowork 版</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=JetBrains+Mono:wght@500&family=Noto+Sans+TC:wght@400;600&display=swap" rel="stylesheet">
+<style>
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{
+    background:#111;color:#E5E7EB;
+    font:400 16px/1.6 "Inter","Noto Sans TC",sans-serif;
+    padding:48px 32px;
+  }
+  .wrap{max-width:1280px;margin:0 auto}
+  .head{margin-bottom:48px;text-align:center}
+  .head h1{
+    font:700 42px/1.1 "Inter","Noto Sans TC",sans-serif;
+    letter-spacing:-.02em;margin-bottom:12px;
+  }
+  .head p{color:#9CA3AF;font-size:18px}
+  .head .mono{font-family:"JetBrains Mono",monospace;color:#F5A623;font-weight:500;text-transform:uppercase;letter-spacing:.14em;font-size:13px;margin-bottom:16px}
+  .legend{
+    display:flex;gap:24px;justify-content:center;margin-top:24px;
+    font-family:"JetBrains Mono",monospace;font-size:13px;text-transform:uppercase;letter-spacing:.12em;
+  }
+  .legend span{display:flex;align-items:center;gap:8px}
+  .legend .dot{width:10px;height:10px;border-radius:50%}
+  .legend .a .dot{background:#6B7280}
+  .legend .b .dot{background:#F5A623}
+  .row{margin-bottom:72px}
+  .row-head{
+    display:flex;align-items:baseline;gap:16px;margin-bottom:20px;
+    padding-bottom:12px;border-bottom:1px solid #27272A;
+  }
+  .row-idx{font:500 13px/1 "JetBrains Mono",monospace;color:#F5A623;letter-spacing:.18em;text-transform:uppercase}
+  .row-title{font:600 22px/1.2 "Inter","Noto Sans TC",sans-serif;color:#F3F4F6}
+  .pair{display:grid;grid-template-columns:1fr 1fr;gap:24px}
+  .cell{}
+  .cell-label{
+    font:500 12px/1 "JetBrains Mono",monospace;
+    color:#9CA3AF;letter-spacing:.16em;text-transform:uppercase;
+    margin-bottom:12px;
+    display:flex;align-items:center;gap:8px;
+  }
+  .cell-label .dot{width:8px;height:8px;border-radius:50%}
+  .cell.a .cell-label .dot{background:#6B7280}
+  .cell.b .cell-label .dot{background:#F5A623}
+  .cell.b .cell-label{color:#F5A623}
+  .cell img{
+    width:100%;display:block;
+    border-radius:4px;
+    box-shadow:0 10px 40px rgba(0,0,0,.5);
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="head">
+    <p class="mono">PK · ai-dev-pitfalls</p>
+    <h1>原版 Claude Code · 對照 · Cowork 版</h1>
+    <p>同一份文案，兩種設計方向。左：原版 default theme　／　右：Cowork 暖色深底版</p>
+    <div class="legend">
+      <span class="a"><span class="dot"></span>Claude Code · default</span>
+      <span class="b"><span class="dot"></span>Cowork · warm-dark</span>
+    </div>
+  </header>
+  <script>
+    const rows = [
+      ["Cover","封面"],
+      ["Hook","反差 / 引言"],
+      ["Story 01 · Title","踩坑 ①：.dockerignore"],
+      ["Story 01 · What","發生了什麼"],
+      ["Story 01 · Lesson","對照與教訓"],
+      ["Story 02 · Title","踩坑 ②：Mock Data"],
+      ["Story 02 · Transcript","對話重建現場"],
+      ["Story 03 · Title","踩坑 ③：數據遷移"],
+      ["Story 03 · What","「已完成」的真相"],
+      ["Recap","三個故事三種坑"],
+      ["Solution","先 Research 再行動"],
+      ["CTA","Spec Before Code"],
+    ];
+    const root = document.querySelector(".wrap");
+    rows.forEach((r,i) => {
+      const idx = String(i+1).padStart(2,"0");
+      const el = document.createElement("section");
+      el.className = "row";
+      el.innerHTML = `
+        <div class="row-head">
+          <span class="row-idx">Slide ${idx}</span>
+          <span class="row-title">${r[0]} · ${r[1]}</span>
+        </div>
+        <div class="pair">
+          <div class="cell a">
+            <div class="cell-label"><span class="dot"></span>Original · default theme</div>
+            <img src="exports-original/p${idx}.png" loading="lazy" alt="original ${r[0]}">
+          </div>
+          <div class="cell b">
+            <div class="cell-label"><span class="dot"></span>Cowork · warm-dark</div>
+            <img src="exports/p${idx}.png" loading="lazy" alt="cowork ${r[0]}">
+          </div>
+        </div>`;
+      root.appendChild(el);
+    });
+  </script>
+</div>
+</body>
+</html>

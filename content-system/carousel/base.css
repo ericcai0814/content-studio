@@ -1,0 +1,55 @@
+/* ═══════════════════════════════════════════
+   Carousel Post — Base Layout
+   結構性的 layout，所有 theme 共用。
+   不含顏色、字型、視覺風格。
+   ═══════════════════════════════════════════ */
+
+* { box-sizing: border-box; margin: 0; }
+
+body {
+    padding: 40px;
+    display: flex;
+    gap: 40px;
+    overflow-x: auto;
+    background: #e5e7eb;
+    min-height: 100vh;
+    align-items: flex-start;
+}
+
+/* ── Page Shell ── */
+.page {
+    position: relative;
+    width: var(--w, 1080px); height: var(--h, 1350px);
+    flex-shrink: 0;
+    display: flex; flex-direction: column;
+    background: var(--bg, #ebebeb);
+    overflow: hidden;
+    box-shadow: 0 10px 25px rgba(0,0,0,.1);
+}
+
+/* noise texture overlay */
+.page::before {
+    content: "";
+    position: absolute; inset: 0; z-index: 1; pointer-events: none;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.03'/%3E%3C/svg%3E");
+}
+
+.inner {
+    position: relative; z-index: 2;
+    display: flex; flex-direction: column;
+    height: 100%;
+    padding: var(--pad-top, 100px) var(--pad, 80px) var(--pad-bottom, 100px);
+}
+
+.mt-auto { margin-top: auto; }
+
+/* ── Cover Logo 封面標誌（由 theme 的 --logo 控制） ── */
+.cover-logo {
+    position: absolute;
+    bottom: var(--pad, 80px);
+    left: var(--pad, 80px);
+    z-index: 3;
+    height: 60px;
+    width: 200px;
+    background: var(--logo) no-repeat left center / contain;
+}

@@ -1,0 +1,538 @@
+/* ═══════════════════════════════════════════
+   Theme: Claude — Anthropic 風格，暖羊皮紙底色 + Serif 標題
+   靈感來自 claude.ai 的設計語言。
+   HTML <head> 需載入 Noto Serif TC：
+   fonts.googleapis.com/css2?family=Noto+Serif+TC:wght@400;500;700&family=Noto+Sans+TC:wght@300;400;500;700
+   ═══════════════════════════════════════════ */
+
+@import url('https://fonts.googleapis.com/css2?family=Noto+Serif+TC:wght@400;500;700&display=swap');
+
+/* ── Design Tokens ── */
+:root {
+    --bg: #f5f4ed;
+    --primary: #141413;
+    --secondary: #5e5d59;
+    --muted: #87867f;
+    --border: #e8e6dc;
+    --card-light: #faf9f5;
+    --card-dark: #30302e;
+    --red: #b53333;
+    --green: #c96442;
+    --font-display: Georgia, "Noto Serif TC", serif;
+    --font-heading: Georgia, "Noto Serif TC", serif;
+    --font-body: system-ui, "Noto Sans TC", sans-serif;
+    --w: 1080px;
+    --h: 1350px;
+    --pad: 80px;
+    --logo: none;
+
+    /* Claude-specific tokens */
+    --terracotta: #c96442;
+    --coral: #d97757;
+    --border-cream: #f0eee6;
+    --warm-silver: #b0aea5;
+    --ring: #d1cfc5;
+}
+
+/* ═══════════════════════════════════════════
+   BLOCKS — 視覺區塊
+   ═══════════════════════════════════════════ */
+
+/* ── Cover 封面元素 ── */
+.cover-title {
+    font: 500 96px/1.10 var(--font-display);
+    color: var(--primary);
+    margin: 16px 0;
+}
+
+.cover-sub {
+    font: 400 36px/1.6 var(--font-body);
+    color: var(--muted);
+    margin: 8px 0;
+}
+
+.deco {
+    width: 80px; height: 6px;
+    background: var(--terracotta);
+    margin: 24px 0;
+    border-radius: 3px;
+}
+
+.cover-desc {
+    font: 400 36px/1.6 var(--font-body);
+    color: var(--secondary);
+    margin-top: 8px;
+}
+
+/* ── Typography 文字 ── */
+.page-title {
+    font: 500 64px/1.15 var(--font-heading);
+    color: var(--primary);
+    margin-bottom: 32px;
+}
+
+.body {
+    font: 400 36px/1.75 var(--font-body);
+    color: var(--primary);
+    margin-bottom: 36px;
+}
+.body:last-child { margin-bottom: 0; }
+.body strong { font-weight: 600; color: var(--primary); }
+
+.small {
+    font: 400 28px/1.7 var(--font-body);
+    color: var(--secondary);
+}
+
+/* ── Callout 引言框 ── */
+.callout {
+    padding: 36px 40px;
+    border-left: 6px solid var(--terracotta);
+    background: var(--card-light);
+    border-radius: 8px;
+    font: 400 34px/1.7 var(--font-body);
+    color: var(--primary);
+    box-shadow: 0px 0px 0px 1px var(--border-cream);
+}
+.callout strong { font-weight: 600; }
+
+/* ── Highlight Card 深色強調卡 ── */
+.highlight-card {
+    padding: 40px;
+    border-left: 6px solid var(--terracotta);
+    border-radius: 12px;
+    background: var(--card-dark);
+    box-shadow: 0px 0px 0px 1px var(--card-dark);
+}
+.highlight-card .h-text {
+    font: 500 36px/1.6 var(--font-heading);
+    color: #faf9f5;
+}
+.highlight-card .h-sub {
+    margin-top: 16px;
+    font: 400 26px/1.6 var(--font-body);
+    color: var(--warm-silver);
+}
+
+/* ── Step List 編號步驟 ── */
+.steps {
+    display: flex; flex-direction: column;
+    gap: 4px;
+}
+.step {
+    display: flex; align-items: baseline; gap: 24px;
+    padding: 20px 0;
+    border-bottom: 1px solid var(--border-cream);
+}
+.step:last-child { border-bottom: none; }
+
+.step-num {
+    flex-shrink: 0; width: 52px;
+    font: 500 32px/1 var(--font-display);
+    color: var(--terracotta);
+}
+.step-t {
+    font: 500 36px/1.4 var(--font-heading);
+    color: var(--primary);
+}
+.step-d {
+    font: 400 31px/1.5 var(--font-body);
+    color: var(--secondary);
+    margin-top: 4px;
+}
+
+/* ── Arrow Steps 箭頭步驟 ── */
+.arrow-steps {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    margin: 12px 0 32px;
+}
+.arrow-step {
+    width: 100%;
+    padding: 32px 40px 40px;
+    text-align: center;
+    color: #faf9f5;
+    background: var(--card-dark);
+    border-radius: 12px;
+    clip-path: polygon(0 0, 100% 0, 100% calc(100% - 22px), 50% 100%, 0 calc(100% - 22px));
+}
+.arrow-step:last-child {
+    clip-path: polygon(0 0, 100% 0, 100% calc(100% - 22px), 50% 100%, 0 calc(100% - 22px));
+    padding-bottom: 40px;
+}
+.arrow-step .arrow-t {
+    font: 500 30px/1.3 var(--font-heading);
+}
+.arrow-step .arrow-d {
+    font: 400 24px/1.4 var(--font-body);
+    opacity: .7;
+    margin-top: 4px;
+}
+
+/* ── Flow Chips 流程箭頭 ── */
+.flow-row {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 16px;
+    margin: 20px calc(var(--pad) * -1) 36px;
+    padding: 36px var(--pad);
+    background: var(--card-light);
+    border-radius: 0;
+    flex-wrap: wrap;
+}
+.flow-chip {
+    flex: 1;
+    padding: 18px 28px;
+    border-radius: 12px;
+    background: var(--card-dark);
+    color: #faf9f5;
+    font: 500 28px/1.3 var(--font-heading);
+    text-align: center;
+}
+.flow-chip.green { background: var(--terracotta); }
+.flow-arrow {
+    font: 500 36px/1 var(--font-display);
+    color: var(--muted);
+}
+
+/* ── Compare Columns 對比欄 ── */
+.compare {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 32px;
+    margin: 12px 0 36px;
+}
+.compare-head {
+    padding-bottom: 14px;
+    margin-bottom: 16px;
+    border-bottom: 3px solid var(--border);
+    font: 500 34px/1.2 var(--font-heading);
+    color: var(--primary);
+}
+.compare-head.bad  { border-color: var(--red); color: var(--red); }
+.compare-head.good { border-color: var(--terracotta); color: var(--terracotta); }
+
+.compare-row {
+    padding: 16px 0;
+    border-bottom: 1px solid var(--border-cream);
+    font: 400 32px/1.5 var(--font-body);
+    color: var(--primary);
+}
+.compare-col:first-child {
+    opacity: .55;
+}
+
+/* ── Chat Bubbles 對話氣泡 ── */
+.chat {
+    display: flex; flex-direction: column;
+    gap: 16px;
+    margin: 12px 0 32px;
+}
+.bubble {
+    max-width: 82%;
+    padding: 24px 32px;
+    border-radius: 20px;
+    font: 400 28px/1.6 var(--font-body);
+}
+.bubble.user {
+    align-self: flex-end;
+    background: var(--card-dark);
+    color: #faf9f5;
+    border-bottom-right-radius: 6px;
+}
+.bubble.ai {
+    align-self: flex-start;
+    background: var(--card-light);
+    color: var(--primary);
+    border-bottom-left-radius: 6px;
+    box-shadow: 0px 0px 0px 1px var(--border-cream);
+}
+.bubble .label {
+    font: 500 22px/1 var(--font-body);
+    margin-bottom: 8px;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+.bubble.user .label { color: var(--warm-silver); }
+.bubble.ai .label   { color: var(--muted); }
+
+/* ── Quote Block 引言區塊 ── */
+.quote-block {
+    padding: 40px;
+    background: var(--card-light);
+    border-radius: 12px;
+    margin: 12px 0 32px;
+    box-shadow: 0px 0px 0px 1px var(--border-cream);
+}
+.quote-mark {
+    font: 500 72px/1 var(--font-display);
+    color: var(--terracotta);
+    margin-bottom: 8px;
+}
+.quote-text {
+    font: 500 32px/1.65 var(--font-heading);
+    color: var(--primary);
+}
+
+/* ── Prompt Card 指令卡片 ── */
+.prompt-card {
+    padding: 36px 40px;
+    border: none;
+    border-radius: 12px;
+    background: var(--card-light);
+    margin: 12px 0 32px;
+    box-shadow: 0px 0px 0px 1px var(--border);
+}
+.prompt-card .prompt-label {
+    font: 500 22px/1 var(--font-body);
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: .08em;
+    margin-bottom: 16px;
+}
+.prompt-card .prompt-text {
+    font: 400 28px/1.7 var(--font-body);
+    color: var(--primary);
+}
+
+/* ── Equation Row 等式對比 ── */
+.eq-row {
+    display: flex; align-items: center; justify-content: center; gap: 24px;
+    margin: 24px 0 48px;
+}
+.eq-box {
+    padding: 24px 40px;
+    border-radius: 12px;
+    background: var(--card-dark);
+    color: #faf9f5;
+    text-align: center;
+    font: 500 36px/1.3 var(--font-heading);
+}
+.eq-box span {
+    display: block;
+    font: 400 24px/1.4 var(--font-body);
+    opacity: .9;
+    margin-top: 4px;
+}
+.eq-sign {
+    font: 500 48px/1 var(--font-display);
+    color: var(--terracotta);
+}
+
+/* ── Feature Grid 重點方格 ── */
+.feature-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 24px;
+}
+.feature-item {
+    padding: 24px 28px;
+    background: var(--card-light);
+    border-radius: 12px;
+    box-shadow: 0px 0px 0px 1px var(--border-cream);
+}
+.feature-icon {
+    width: 80px; height: 80px;
+    margin: 0 0 8px auto;
+    background: var(--terracotta);
+    border-radius: 12px;
+}
+.feature-label {
+    margin-bottom: 12px;
+    color: var(--primary);
+    font: 500 36px/1.2 var(--font-heading);
+}
+.feature-detail {
+    color: var(--secondary);
+    font: 400 28px/1.5 var(--font-body);
+}
+
+/* ── Terminal 終端機視窗 ── */
+.terminal {
+    border-radius: 12px;
+    overflow: hidden;
+    margin: 12px 0 32px;
+    box-shadow: 0px 0px 0px 1px var(--border);
+}
+
+.terminal-bar {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 14px 20px;
+    background: #2a2a28;
+}
+
+.terminal-dot {
+    width: 14px; height: 14px;
+    border-radius: 50%;
+}
+.terminal-dot.r { background: #ff5f57; }
+.terminal-dot.y { background: #febc2e; }
+.terminal-dot.g { background: #28c840; }
+
+.terminal-body {
+    padding: 28px 32px;
+    background: var(--primary);
+    font: 400 26px/1.8 "SF Mono", "Fira Code", "Courier New", monospace;
+    color: var(--warm-silver);
+}
+
+.terminal-body .prompt {
+    color: var(--terracotta);
+    font-weight: 600;
+}
+
+.terminal-body .dim {
+    color: #5e5d59;
+}
+
+/* ── Task Demo 任務展示 ── */
+.task-demo {
+    border-radius: 12px;
+    overflow: hidden;
+    margin: 12px 0 32px;
+    box-shadow: 0px 0px 0px 1px var(--border);
+}
+
+.task-command {
+    padding: 28px 32px;
+    background: var(--card-dark);
+    color: #faf9f5;
+    font: 400 28px/1.6 var(--font-body);
+}
+
+.task-command .task-label,
+.task-result .task-label {
+    font: 500 20px/1 var(--font-body);
+    text-transform: uppercase;
+    letter-spacing: .06em;
+    margin-bottom: 12px;
+}
+
+.task-command .task-label { color: var(--warm-silver); }
+.task-result .task-label  { color: var(--muted); }
+
+.task-result {
+    padding: 28px 32px;
+    background: var(--card-light);
+    color: var(--primary);
+    font: 400 28px/1.6 var(--font-body);
+}
+
+/* ── Illustration 插圖 ── */
+.illust {
+    display: flex;
+    justify-content: center;
+    margin: 24px 0 32px;
+}
+.illust img {
+    max-width: 100%;
+    max-height: 560px;
+    object-fit: contain;
+}
+
+/* 插圖 + 文字並排 */
+.illust-row {
+    display: flex;
+    align-items: center;
+    gap: 40px;
+    margin: 24px 0 32px;
+}
+.illust-row img {
+    width: 40%;
+    max-height: 480px;
+    object-fit: contain;
+    flex-shrink: 0;
+}
+.illust-row .illust-text {
+    flex: 1;
+}
+
+/* ── Diagram 流程圖原子零件 ── */
+.diagram {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0;
+    margin: 24px 0 32px;
+    width: 100%;
+}
+.diagram-row {
+    display: flex;
+    justify-content: center;
+    gap: 20px;
+    width: 100%;
+}
+.diagram-node {
+    flex: 1;
+    padding: 20px 24px;
+    border-radius: 12px;
+    text-align: center;
+    background: var(--card-dark);
+    color: #faf9f5;
+}
+.diagram-node.wide {
+    flex: none;
+    width: 100%;
+}
+.diagram-node.light {
+    background: var(--card-light);
+    color: var(--primary);
+    box-shadow: 0px 0px 0px 1px var(--border-cream);
+}
+.diagram-node.muted {
+    background: #4d4c48;
+}
+.diagram-node .node-t {
+    font: 500 32px/1.3 var(--font-heading);
+}
+.diagram-node .node-d {
+    font: 400 26px/1.4 var(--font-body);
+    opacity: .7;
+    margin-top: 4px;
+}
+.diagram-node.light .node-d {
+    color: var(--secondary);
+    opacity: 1;
+}
+.diagram-arrow {
+    display: flex;
+    justify-content: center;
+    padding: 10px 0;
+    font: 400 32px/1 var(--font-display);
+    color: var(--muted);
+}
+
+/* ── Cycle Loop 循環圖 ── */
+.cycle {
+    display: grid;
+    grid-template-columns: 1fr auto 1fr;
+    align-items: center;
+    justify-items: center;
+    gap: 12px;
+    margin: 24px 0 32px;
+    width: 100%;
+}
+.cycle-node {
+    width: 100%;
+    padding: 32px 24px;
+    border-radius: 12px;
+    background: var(--card-dark);
+    color: #faf9f5;
+    text-align: center;
+    font: 500 32px/1.3 var(--font-heading);
+}
+.cycle-node .cycle-d {
+    font: 400 22px/1.4 var(--font-body);
+    opacity: .7;
+    margin-top: 4px;
+}
+.cycle-node.green { background: var(--terracotta); }
+.cycle-arrow {
+    font: 500 36px/1 var(--font-display);
+    color: var(--muted);
+    padding: 0 12px;
+}

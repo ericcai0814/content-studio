@@ -1,0 +1,30 @@
+{
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Write|Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "CHANGED=\"$TOOL_INPUT_FILE_PATH\"; [[ \"$CHANGED\" == */themes/*.css ]] && { REQUIRED='--bg --primary --secondary --muted --border --card-dark --card-light --green --red --font-display --font-heading --font-body --logo --w --h --pad'; MISSING=''; for token in $REQUIRED; do grep -q -- \"$token\" \"$CHANGED\" || MISSING=\"$MISSING $token\"; done; [ -n \"$MISSING\" ] && echo \"⚠️ $(basename \"$CHANGED\") 缺少 token:$MISSING\" || exit 0; } || exit 0"
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "Write|Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "FILE=\"$TOOL_INPUT_FILE_PATH\"; case \"$FILE\" in */_template/*|*/base.css) echo '⛔ 這是系統模板檔案，請複製到 contents/ 再編輯'; exit 2;; esac"
+          }
+        ]
+      }
+    ]
+  },
+  "enabledPlugins": {
+    "slack@claude-plugins-official": true,
+    "document-skills@anthropic-agent-skills": true
+  }
+}

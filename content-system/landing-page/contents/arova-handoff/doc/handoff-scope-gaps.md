@@ -1,0 +1,1 @@
+/Users/ericcai/project/arova-ai/.claude/doc/handoff-scope-gaps.md

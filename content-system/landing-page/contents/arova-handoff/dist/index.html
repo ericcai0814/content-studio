@@ -1,0 +1,657 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AROVA-AI Handoff Dossier — v2</title>
+  <meta name="description" content="工程師接手 AROVA-AI 的現況盤點與待 PM / Kyle 表態的 6 道關鍵問題，並列 9 項深掃發現的技術問題。">
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Schibsted+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap">
+
+  <link rel="stylesheet" href="./base.css">
+  <link rel="stylesheet" href="./app.css">
+</head>
+<body>
+
+<!-- ========== Identity Gate ========== -->
+<div id="identity-gate" class="identity-gate" hidden aria-modal="true" role="dialog" aria-labelledby="gate-title">
+  <form class="identity-card" id="identity-form" novalidate>
+    <p class="gate-tag"><span class="mono">VOL.01</span> · <span>INTERNAL HANDOFF</span></p>
+    <h2 id="gate-title">Identify yourself <em>請選擇你的身分</em></h2>
+    <p class="lead">送出回覆會以此身分記錄到 Sheet 與 Slack thread。任何時間都可以從側欄切換。</p>
+
+    <div class="identity-options" role="radiogroup" aria-label="身分">
+      <label class="identity-cell">
+        <input type="radio" name="role" value="PM" required>
+        <span class="cell-key">PM</span>
+        <span class="cell-desc">產品經理</span>
+      </label>
+      <label class="identity-cell">
+        <input type="radio" name="role" value="Kyle">
+        <span class="cell-key">Kyle</span>
+        <span class="cell-desc">顧問</span>
+      </label>
+      <label class="identity-cell">
+        <input type="radio" name="role" value="其他">
+        <span class="cell-key">其他</span>
+        <span class="cell-desc">其他知情者</span>
+      </label>
+    </div>
+
+    <label class="identity-name-field" id="identity-name-field">
+      <span class="name-label">名字 <em class="optional">（選填）</em></span>
+      <input type="text" name="name" autocomplete="off" placeholder="例：Tom Lin">
+    </label>
+
+    <button type="submit" class="gate-submit">進入 / Enter <span class="arrow">→</span></button>
+    <span class="gate-status" id="gate-status" aria-live="polite"></span>
+  </form>
+</div>
+
+<!-- ========== Masthead ========== -->
+<header class="masthead">
+  <div class="masthead-inner">
+    <div class="masthead-meta">
+      <span class="mono">VOL. 01 · APR 2026</span>
+      <span class="dot">●</span>
+      <span class="mono">INTERNAL HANDOFF</span>
+    </div>
+    <h1 class="masthead-title">
+      <span class="title-row">AROVA-AI</span>
+      <span class="title-row title-row--em"><em>Handoff Dossier</em></span>
+    </h1>
+    <p class="masthead-deck">
+      Engineering takeover prep · <strong>7</strong> repos · <strong>6</strong> open questions · <strong>9</strong> known issues
+    </p>
+    <div class="masthead-rule"></div>
+  </div>
+</header>
+
+<!-- ========== Layout ========== -->
+<div class="page">
+
+  <!-- ========== Sidebar ========== -->
+  <aside class="sidebar" aria-label="目錄與身分">
+    <div class="sidebar-inner">
+      <nav class="toc" aria-label="目錄">
+        <p class="toc-label mono">CONTENTS</p>
+        <ol class="toc-list">
+          <li><a href="#background"><span class="mono">01</span><em>Background</em></a></li>
+          <li><a href="#inventory"><span class="mono">02</span><em>Inventory</em></a></li>
+          <li><a href="#questions"><span class="mono">03</span><em>Open Questions</em></a></li>
+          <li><a href="#issues"><span class="mono">04</span><em>Known Issues</em></a></li>
+        </ol>
+      </nav>
+
+      <section class="identity-badge" id="identity-badge" hidden>
+        <p class="badge-label mono">YOU ARE</p>
+        <p class="badge-role">AS <span data-id-role>—</span><span class="badge-name" data-id-name></span></p>
+        <button type="button" class="badge-switch" id="identity-switch">[ switch ]</button>
+      </section>
+
+      <section class="progress" aria-label="作答進度">
+        <p class="progress-label mono">PROGRESS</p>
+        <p class="progress-meter"><span data-progress-done>0</span> / 6 answered</p>
+        <div class="progress-bar"><span class="progress-fill" data-progress-fill></span></div>
+      </section>
+
+      <p class="sidebar-foot mono">handoff-prep.md · 2026-04-24</p>
+    </div>
+  </aside>
+
+  <!-- ========== Main ========== -->
+  <main class="main">
+
+    <!-- ========== 01 Background ========== -->
+    <section id="background" class="dossier-section">
+      <header class="section-head">
+        <span class="section-num">01</span>
+        <p class="section-kicker mono">Background</p>
+        <h2 class="section-title">交接前置盤點</h2>
+        <hr class="section-rule">
+      </header>
+
+      <p class="lede">這份頁面把工程師接手 AROVA-AI 的盤點結果整理成可互動格式：左欄定位、右欄收回覆、底部列純 FYI 的技術問題。</p>
+
+      <dl class="meta-grid">
+        <div><dt class="mono">撰寫日期</dt><dd>2026-04-24</dd></div>
+        <div><dt class="mono">狀態</dt><dd>Phase 1 淺掃完成 + 3 輪跨 repo 驗證完成</dd></div>
+        <div><dt class="mono">待回覆</dt><dd>Q1 / Q2 / Q3 / Q4 / Q5 / Q6（共 6 題，Q6 含 9 子題）</dd></div>
+        <div><dt class="mono">純展示</dt><dd>Part 4 技術問題 P0 / P1 / P2 / P3 共 9 條</dd></div>
+      </dl>
+    </section>
+
+    <!-- ========== 02 Inventory ========== -->
+    <section id="inventory" class="dossier-section">
+      <header class="section-head">
+        <span class="section-num">02</span>
+        <p class="section-kicker mono">Inventory</p>
+        <h2 class="section-title">現況盤點</h2>
+        <hr class="section-rule">
+      </header>
+
+      <h3 class="sub-title">2.1 七個 repo 的角色與定位</h3>
+      <div class="table-wrap">
+        <table class="repo-table">
+          <thead>
+            <tr><th class="num">#</th><th>Repo</th><th>角色</th><th>技術棧</th><th>狀態</th></tr>
+          </thead>
+          <tbody>
+            <tr><td class="num">01</td><td class="repo-name">arova-ai-core</td><td>OMNI v1 後端 AI service（自述）</td><td>Hono + Mastra + PostgreSQL+pgvector + Ollama Gemma4 26B</td><td>內部原型，產品組成待確認（見 Q4）</td></tr>
+            <tr><td class="num">02</td><td class="repo-name">omni-v2</td><td>OMNI v2 合併重寫版（前後端合一）</td><td>Next.js 16 + Mastra（in-process）+ Drizzle + Ollama</td><td>進行中 ~68%</td></tr>
+            <tr><td class="num">03</td><td class="repo-name">nexus-demo</td><td>Arova Nexus 產品（獨立於 OMNI）</td><td>Next.js 16 + CopilotKit + Prisma + OpenAI GPT-4o</td><td>v1.5.0-stable，部署在 nexus-demo.ewill.dev</td></tr>
+            <tr><td class="num">04</td><td class="repo-name">arova-website</td><td>公司官網 arova-ai.com</td><td>Astro 6 + React 19 + Tailwind v4</td><td>GitHub Pages</td></tr>
+            <tr><td class="num">05</td><td class="repo-name">nexus-docs</td><td>Nexus 產品文件站</td><td>自製 marked 腳本</td><td>Cloudflare Pages</td></tr>
+            <tr><td class="num">06</td><td class="repo-name">about</td><td>公司 / 產品 / 團隊 onboarding 文件</td><td>純 Markdown</td><td>—</td></tr>
+            <tr><td class="num">07</td><td class="repo-name">agent-skills</td><td>Claude Code skill 集合</td><td>純 Markdown</td><td>—</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h3 class="sub-title">2.2 Repo 之間幾乎無依賴</h3>
+      <p>七個 repo 之間實質的跨 repo 依賴<strong>只有一條</strong>：<span class="repo-name">nexus-demo</span> 在開發機本機借用 <span class="repo-name">arova-ai-core</span> compose stack 的 socat sidecar，把 Proxmox API 從 <code>10.200.4.11:8006</code> 橋接到 <code>localhost:8006</code>。production 走 NetBird，不需此橋接。其餘 repo 之間完全獨立。</p>
+
+      <figure class="dep-map" aria-label="repo 依賴圖">
+        <div class="dep-canvas">
+          <svg viewBox="0 0 720 420" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="AROVA-AI repo 依賴關係圖">
+            <defs>
+              <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerUnits="strokeWidth" markerWidth="8" markerHeight="8" orient="auto">
+                <path d="M0,0 L10,5 L0,10 z" fill="#aa3a1c"/>
+              </marker>
+              <marker id="arrow-soft" viewBox="0 0 10 10" refX="9" refY="5" markerUnits="strokeWidth" markerWidth="8" markerHeight="8" orient="auto">
+                <path d="M0,0 L10,5 L0,10 z" fill="#6b5e4e"/>
+              </marker>
+            </defs>
+
+            <!-- 連線 -->
+            <line x1="270" y1="120" x2="170" y2="80" stroke="#aa3a1c" stroke-width="1.5" marker-end="url(#arrow)" stroke-dasharray="4 4"/>
+            <text x="170" y="100" class="svg-label" fill="#7c2c14">v2 取代 v1</text>
+
+            <line x1="270" y1="135" x2="170" y2="170" stroke="#aa3a1c" stroke-width="1.5" marker-end="url(#arrow)" stroke-dasharray="4 4"/>
+            <text x="170" y="195" class="svg-label" fill="#7c2c14">v2 取代 v1</text>
+
+            <line x1="170" y1="80" x2="170" y2="170" stroke="#6b5e4e" stroke-width="1.2" marker-end="url(#arrow-soft)" stroke-dasharray="3 3"/>
+            <text x="60" y="125" class="svg-label" fill="#6b5e4e">v1 HTTP proxy</text>
+
+            <line x1="380" y1="135" x2="180" y2="170" stroke="#aa3a1c" stroke-width="2" marker-end="url(#arrow)"/>
+            <text x="220" y="155" class="svg-label" fill="#7c2c14">socat sidecar (dev only)</text>
+
+            <line x1="540" y1="105" x2="540" y2="180" stroke="#6b5e4e" stroke-width="1.2" stroke-dasharray="3 3"/>
+            <text x="555" y="148" class="svg-label" fill="#6b5e4e">官網文案</text>
+
+            <!-- 節點：產品 -->
+            <g class="dep-group">
+              <text x="60" y="40" class="svg-group-label" fill="#6b5e4e">PRODUCTS</text>
+
+              <g class="dep-node">
+                <rect x="120" y="60" width="100" height="40" rx="3" fill="#fbf6e8" stroke="#aa3a1c" stroke-width="1.5"/>
+                <text x="170" y="78" class="svg-node-title" text-anchor="middle">arova-ai-core</text>
+                <text x="170" y="92" class="svg-node-sub" text-anchor="middle" fill="#6b5e4e">OMNI v1 後端</text>
+              </g>
+
+              <g class="dep-node">
+                <rect x="280" y="115" width="100" height="40" rx="3" fill="#fbf6e8" stroke="#aa3a1c" stroke-width="1.5"/>
+                <text x="330" y="133" class="svg-node-title" text-anchor="middle">omni-v2</text>
+                <text x="330" y="147" class="svg-node-sub" text-anchor="middle" fill="#6b5e4e">~68% 完成</text>
+              </g>
+
+              <g class="dep-node">
+                <rect x="120" y="170" width="100" height="40" rx="3" fill="#fbf6e8" stroke="#aa3a1c" stroke-width="1.5"/>
+                <text x="170" y="188" class="svg-node-title" text-anchor="middle">nexus-demo</text>
+                <text x="170" y="202" class="svg-node-sub" text-anchor="middle" fill="#6b5e4e">Nexus v1.5.0</text>
+              </g>
+            </g>
+
+            <!-- 節點：內容 -->
+            <g class="dep-group">
+              <text x="430" y="40" class="svg-group-label" fill="#6b5e4e">CONTENT / DOCS</text>
+
+              <g class="dep-node">
+                <rect x="490" y="60" width="100" height="40" rx="3" fill="#fbf6e8" stroke="#1c1812" stroke-width="1"/>
+                <text x="540" y="78" class="svg-node-title" text-anchor="middle">arova-website</text>
+                <text x="540" y="92" class="svg-node-sub" text-anchor="middle" fill="#6b5e4e">arova-ai.com</text>
+              </g>
+
+              <g class="dep-node">
+                <rect x="490" y="180" width="100" height="40" rx="3" fill="#fbf6e8" stroke="#1c1812" stroke-width="1"/>
+                <text x="540" y="198" class="svg-node-title" text-anchor="middle">nexus-docs</text>
+                <text x="540" y="212" class="svg-node-sub" text-anchor="middle" fill="#6b5e4e">Cloudflare</text>
+              </g>
+
+              <g class="dep-node">
+                <rect x="610" y="60" width="80" height="40" rx="3" fill="#fbf6e8" stroke="#1c1812" stroke-width="1"/>
+                <text x="650" y="84" class="svg-node-title" text-anchor="middle">about</text>
+              </g>
+
+              <g class="dep-node">
+                <rect x="610" y="180" width="80" height="40" rx="3" fill="#fbf6e8" stroke="#1c1812" stroke-width="1"/>
+                <text x="650" y="204" class="svg-node-title" text-anchor="middle">agent-skills</text>
+              </g>
+            </g>
+
+            <!-- 節點：ghost -->
+            <g class="dep-group">
+              <text x="60" y="280" class="svg-group-label" fill="#6b5e4e">GHOSTS · 文件提及，實體缺席</text>
+
+              <g class="dep-node dep-node--ghost">
+                <rect x="80" y="300" width="120" height="44" rx="3" fill="none" stroke="#aa3a1c" stroke-width="1.2" stroke-dasharray="4 4" opacity="0.6"/>
+                <text x="140" y="320" class="svg-node-title" text-anchor="middle" fill="#aa3a1c" opacity="0.85">ewai-omni</text>
+                <text x="140" y="334" class="svg-node-sub" text-anchor="middle" fill="#aa3a1c" opacity="0.75">v1 前端 · 不在此目錄</text>
+              </g>
+
+              <g class="dep-node dep-node--ghost">
+                <rect x="240" y="300" width="120" height="44" rx="3" fill="none" stroke="#aa3a1c" stroke-width="1.2" stroke-dasharray="4 4" opacity="0.6"/>
+                <text x="300" y="320" class="svg-node-title" text-anchor="middle" fill="#aa3a1c" opacity="0.85">EWAI FLOW</text>
+                <text x="300" y="334" class="svg-node-sub" text-anchor="middle" fill="#aa3a1c" opacity="0.75">僅文案提及</text>
+              </g>
+            </g>
+
+            <!-- ghost 連線 -->
+            <line x1="170" y1="100" x2="160" y2="300" stroke="#aa3a1c" stroke-width="1.2" stroke-dasharray="2 4" opacity="0.55"/>
+            <line x1="320" y1="155" x2="180" y2="300" stroke="#aa3a1c" stroke-width="1.2" stroke-dasharray="2 4" opacity="0.55"/>
+          </svg>
+        </div>
+        <figcaption class="dep-caption">
+          <span class="mono">FIG.01</span> Repo 之間的依賴狀況。實線為實際依賴，虛線為文件提及或概念性關聯，鏽紅虛線框為 ghost 節點（在文件中被提到但找不到原始碼）。
+        </figcaption>
+      </figure>
+
+      <h3 class="sub-title">2.3 文件提到、實體找不到</h3>
+      <div class="table-wrap">
+        <table class="ghost-table">
+          <thead>
+            <tr><th>名稱</th><th>文件出現位置</th><th>實際狀況</th></tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td class="repo-name ghost-name">ewai-omni</td>
+              <td>omni-v2/package.json 命名 ewai-omni-v2、arova-ai-core 的 openspec 任務清單</td>
+              <td>本機找不到，可能在其他 GitHub org、已封存、或只存在於 server</td>
+            </tr>
+            <tr>
+              <td class="repo-name ghost-name">EWAI FLOW</td>
+              <td>arova-ai-core 的 README 與 CLAUDE.md 各出現一次</td>
+              <td>全 7 repo 程式碼、openspec、知識庫零命中</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h3 class="sub-title">2.4 三個被提及的產品 — 整體規劃尚不明朗</h3>
+      <p>arova-ai-core 文案提到 EWAI OMNI / NEXUS / FLOW，但實際只看得到 OMNI 對應的 repo，Nexus 推測對應 nexus-demo（未明文標註），FLOW 找不到任何實作 repo。</p>
+      <div class="table-wrap">
+        <table class="product-matrix">
+          <thead>
+            <tr><th></th><th class="prod-h">OMNI</th><th class="prod-h">Nexus</th><th class="prod-h">FLOW</th></tr>
+          </thead>
+          <tbody>
+            <tr><th>對應 repo</th><td><span class="repo-name">arova-ai-core</span> + <span class="repo-name">omni-v2</span></td><td><span class="repo-name">nexus-demo</span><span class="muted">（推測）</span></td><td><span class="muted">找不到</span></td></tr>
+            <tr><th>LLM 部署</th><td>地端 Ollama Gemma4 26B</td><td>雲端 OpenAI GPT-4o</td><td>—</td></tr>
+            <tr><th>整合系統</th><td>Graylog + LibreNMS</td><td>Proxmox VE + Mailcow</td><td>—</td></tr>
+            <tr><th>目標客戶</th><td>對資料主權有高要求</td><td>能接受雲端 AI 的一般企業</td><td>—</td></tr>
+            <tr><th>狀態</th><td>v1 內部原型 / v2 ~68%</td><td>v1.5.0-stable 已上線</td><td>—</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- ========== 03 Open Questions ========== -->
+    <section id="questions" class="dossier-section">
+      <header class="section-head">
+        <span class="section-num">03</span>
+        <p class="section-kicker mono">Open Questions</p>
+        <h2 class="section-title">待確認的問題</h2>
+        <hr class="section-rule">
+      </header>
+
+      <p class="lede">六道題不指定回答者——任何知情者皆可回答。Q1 / Q2 / Q3 / Q4 屬<strong>策略判斷</strong>影響交接範圍；Q5 / Q6 屬<strong>工作交接</strong>影響接手效率。送出時會以你在側欄選定的身分記錄。</p>
+
+      <div class="tabs" role="tablist">
+        <button class="tab-btn" data-tab="strategic" role="tab" aria-selected="true">策略判斷<span class="count">4</span></button>
+        <button class="tab-btn" data-tab="operational" role="tab" aria-selected="false">工作交接<span class="count">2</span></button>
+        <button class="tab-btn" data-tab="all" role="tab" aria-selected="false">全部<span class="count">6</span></button>
+      </div>
+
+      <div class="question-list">
+
+        <!-- ========== Q1 ========== -->
+        <article class="question" data-qid="Q1">
+          <header class="q-head">
+            <span class="q-id mono">Q1</span>
+            <span class="q-target q-target--strategic">策略</span>
+          </header>
+          <h3 class="q-title">OMNI 和 Arova Nexus 是同一個產品的兩個版本，還是兩條獨立產品線？</h3>
+          <div class="q-body">
+            <p>官網對外只提 Nexus，但 <span class="repo-name">arova-ai-core</span> 的內部文案列了 EWAI OMNI、NEXUS、EWAI FLOW 三個產品。要釐清的是：</p>
+            <ul>
+              <li>Nexus 和 OMNI 是兩條獨立產品線，還是同產品在不同客戶/通路的分支？</li>
+              <li>對外只賣 Nexus、對內 OMNI 給特定客戶嗎？</li>
+            </ul>
+            <blockquote class="hypothesis">
+              <p class="hyp-label mono">初步推論 · 2026-04-24</p>
+              <p class="hyp-thesis">Nexus 和 OMNI 看起來是<strong>兩條獨立的產品線</strong>，不是同一產品的不同版本。</p>
+              <p class="hyp-grounds-label mono">推論依據</p>
+              <ol class="hyp-grounds">
+                <li>對外品牌一致指向 Nexus（官網只提 Nexus）</li>
+                <li>對外客戶證據只看得到 Nexus，OMNI v1 找不到客戶部署</li>
+                <li>技術選型差距大（LLM / ORM / 整合系統 / 目標語系全部不同），更像針對不同客戶情境獨立設計</li>
+              </ol>
+              <p class="hyp-impact"><span class="mono">→ 若推論成立</span>軟體部主要接手 <span class="repo-name">nexus-demo</span> + <span class="repo-name">nexus-docs</span>，omni-v2 與 arova-ai-core 可暫排除。</p>
+            </blockquote>
+          </div>
+          <form class="answer-form" data-qid="Q1" data-qtype="stance">
+            <p class="form-prompt mono">對上述推論的態度</p>
+            <div class="choices">
+              <label class="choice"><input type="radio" name="stance" value="同意" required><span class="cho-key mono">A</span><span class="cho-text">同意，handoff 範圍主要是 Nexus</span></label>
+              <label class="choice"><input type="radio" name="stance" value="不同意"><span class="cho-key mono">B</span><span class="cho-text">不同意，OMNI 與 Nexus 應視為同產品兩版本</span></label>
+              <label class="choice"><input type="radio" name="stance" value="部分同意"><span class="cho-key mono">C</span><span class="cho-text">部分同意，需要補充情境</span></label>
+            </div>
+            <label class="field"><span>補充說明 <em class="optional">（可選）</em></span><textarea name="note" placeholder="例：5 月參展主打哪一個？軟體部要接手哪些 repo？"></textarea></label>
+            <button type="submit" class="submit">送出 <span class="arrow">→</span></button>
+            <span class="form-status" aria-live="polite"></span>
+          </form>
+        </article>
+
+        <!-- ========== Q3 ========== -->
+        <article class="question" data-qid="Q2">
+          <header class="q-head">
+            <span class="q-id mono">Q2</span>
+            <span class="q-target q-target--strategic">策略</span>
+          </header>
+          <h3 class="q-title">EWAI FLOW 是未來規劃、已取消、還是只是文案殘留？</h3>
+          <div class="q-body">
+            <p class="q-note"><span class="mono">與 Q1 重疊</span>此題會在 Q1 EWAI 子問題有答案時連帶解決——Q1 子問題追問 <span class="repo-name">arova-ai-core</span> README/CLAUDE.md 提到的 EWAI OMNI / NEXUS / FLOW 三產品的整體定位（過時殘留 vs. 文件未明列），Q2 是其中聚焦在 FLOW 的具體追問，僅在 Q1 答案沒處理到 FLOW 細節時才需要單獨回應。</p>
+            <p>名稱在七 repo 中只在 <span class="repo-name">arova-ai-core</span> 的 README 與 CLAUDE.md 各出現一次，所有 code、openspec、知識庫零命中。</p>
+          </div>
+          <form class="answer-form" data-qid="Q2" data-qtype="abc">
+            <p class="form-prompt mono">EWAI FLOW 屬於</p>
+            <div class="choices">
+              <label class="choice"><input type="radio" name="choice" value="(a) Roadmap 中的未來產品" required><span class="cho-key mono">a</span><span class="cho-text">Roadmap 中的未來產品（請於下方說明 roadmap 位置與啟動時間）</span></label>
+              <label class="choice"><input type="radio" name="choice" value="(b) 已取消，需更新文案"><span class="cho-key mono">b</span><span class="cho-text">已取消，需更新 README/CLAUDE.md 移除文案</span></label>
+              <label class="choice"><input type="radio" name="choice" value="(c) 在其他 GitHub org 有實體 repo"><span class="cho-key mono">c</span><span class="cho-text">在其他 GitHub org 有實體 repo（請告知位置）</span></label>
+            </div>
+            <label class="field"><span>補充說明 <em class="optional">（可選）</em></span><textarea name="note" placeholder="roadmap 位置、其他 org repo URL、是否納入 handoff…"></textarea></label>
+            <button type="submit" class="submit">送出 <span class="arrow">→</span></button>
+            <span class="form-status" aria-live="polite"></span>
+          </form>
+        </article>
+
+        <!-- ========== Q7 ========== -->
+        <article class="question" data-qid="Q3">
+          <header class="q-head">
+            <span class="q-id mono">Q3</span>
+            <span class="q-target q-target--strategic">策略</span>
+          </header>
+          <h3 class="q-title">nexus-demo 到底是 demo，還是客戶的實際環境？</h3>
+          <div class="q-body">
+            <p>repo 名稱是 nexus-<strong>demo</strong>，但 README 寫「deployed to production at nexus-demo.ewill.dev」、版號 <code>v1.5.0-stable</code>、openspec 多次提到「客戶泰國廠 Phase 2.5 / 2.6」。直接決定軟體部的 SLA 承諾、oncall 規劃、事故處理流程。</p>
+            <blockquote class="hypothesis">
+              <p class="hyp-label mono">初步推論 · 2026-04-24</p>
+              <p class="hyp-thesis">目前<strong>不是客戶的生產系統</strong>，更接近 (a) demo 或 (c) PoC 評估環境。</p>
+              <p class="hyp-grounds-label mono">主要訊號</p>
+              <ol class="hyp-grounds">
+                <li>命名直接點明用途：repo 叫 <code>nexus-demo</code>、網域是 <code>nexus-demo.ewill.dev</code>，即使 ewill 是自家公司網域，<code>nexus-demo</code> 這個前綴本身就宣告了「展示用途」，真實客戶使用的系統通常會掛在客戶方網域（例：<code>it.thailand-factory.com</code>）或客戶專屬子網域，不會跟 demo 共用前綴</li>
+                <li>「客戶泰國廠 Phase 2.5 / 2.6」還停在 openspec 的 proposal 狀態：proposal 代表「提案中、尚未實作」，如果泰國廠真的在用生產版本，這些應該是「已交付給客戶的下一階段」，而不是還在提案，這更像是銷售 / PoC 流程的階段被冠上產品版本號</li>
+                <li>nexus-docs 整體仍是 Phase 0「產品定義階段」：若已有客戶使用，文件站不會停留在「產品定義中」，至少會有 user guide 或 admin manual</li>
+                <li>客戶部署文件實體不存在：<code>nexus-docs/CLAUDE.md</code> 提及 <code>docs/architecture/customer/</code>（「客戶泰國廠 series」），但該目錄在 repo 中不存在，對客戶負責的生產系統，客戶部署文件通常是最完整的，這個目錄缺席本身就是訊號</li>
+              </ol>
+              <p class="hyp-grounds-label mono">次要訊號</p>
+              <ol class="hyp-grounds">
+                <li>產品版本號（v1.5.0）超前 PRD（v1.3）——這是 demo 產品的典型特徵（工程師迭代快過 PRD 跟進）；客戶產品通常相反，PRD 會先鎖版再出對應版本</li>
+                <li>nexus-demo 沒有 CODEOWNERS，對客戶負責的 repo 通常會有 review 流程把關</li>
+              </ol>
+            </blockquote>
+          </div>
+          <form class="answer-form" data-qid="Q3" data-qtype="stance">
+            <p class="form-prompt mono">對上述推論的態度</p>
+            <div class="choices">
+              <label class="choice"><input type="radio" name="stance" value="同意" required><span class="cho-key mono">A</span><span class="cho-text">同意，泰國廠目前是 PoC / 評估，無付費客戶 SLA</span></label>
+              <label class="choice"><input type="radio" name="stance" value="不同意"><span class="cho-key mono">B</span><span class="cho-text">不同意，泰國廠已是付費客戶（請說明階段、SLA、書面承諾）</span></label>
+              <label class="choice"><input type="radio" name="stance" value="部分同意"><span class="cho-key mono">C</span><span class="cho-text">部分同意，需要補充情境</span></label>
+            </div>
+            <label class="field"><span>補充說明 <em class="optional">（可選）</em></span><textarea name="note" placeholder="泰國廠目前階段、Kyle 對客戶的書面 / 口頭承諾紀錄"></textarea></label>
+            <button type="submit" class="submit">送出 <span class="arrow">→</span></button>
+            <span class="form-status" aria-live="polite"></span>
+          </form>
+        </article>
+
+        <!-- ========== Q8 ========== -->
+        <article class="question" data-qid="Q4">
+          <header class="q-head">
+            <span class="q-id mono">Q4</span>
+            <span class="q-target q-target--strategic">策略</span>
+          </header>
+          <h3 class="q-title">OMNI v1 到底由哪幾個 repo 組成？</h3>
+          <div class="q-body">
+            <p>多份文件把「OMNI v1」說成「前端 <span class="repo-name">ewai-omni</span> + 後端 <span class="repo-name">arova-ai-core</span>」，但這個說法尚未正式確認，且 ewai-omni 找不到原始碼。若拼圖不正確，handoff 範圍與 omni-v2 取代 v1 的可行性都會失去依據。</p>
+            <blockquote class="hypothesis">
+              <p class="hyp-label mono">初步推論 · 2026-04-24</p>
+              <p class="hyp-thesis">「OMNI v1 = ewai-omni + arova-ai-core」<strong>主架構大致正確</strong>，但 v1 完整範圍還不確定（可能還有排程 / 背景工作 / ETL / 管理後台 / 行動端等元件）。</p>
+              <p class="hyp-grounds-label mono">推論依據</p>
+              <ol class="hyp-grounds">
+                <li>三份不同 repo 的文件都指向「前端 + 後端」結構，難以是巧合</li>
+                <li>omni-v2 的程式套件名 <code>ewai-omni-v2</code> 是接續版本</li>
+                <li>arova-ai-core 自述「共用的 AI 後端引擎」與後端角色對得上</li>
+              </ol>
+              <p class="hyp-impact"><span class="mono">→ 若推論不成立</span>handoff 範圍不完整，Q3 判斷基礎需重新評估，並需補完 v1 完整清單（併入 Q6-1）。</p>
+            </blockquote>
+          </div>
+          <form class="answer-form" data-qid="Q4" data-qtype="stance">
+            <p class="form-prompt mono">對上述推論的態度</p>
+            <div class="choices">
+              <label class="choice"><input type="radio" name="stance" value="同意" required><span class="cho-key mono">A</span><span class="cho-text">同意，v1 = ewai-omni + arova-ai-core（拼圖完整）</span></label>
+              <label class="choice"><input type="radio" name="stance" value="不同意"><span class="cho-key mono">B</span><span class="cho-text">不同意，v1 還包含其他元件（請說明）</span></label>
+              <label class="choice"><input type="radio" name="stance" value="部分同意"><span class="cho-key mono">C</span><span class="cho-text">部分同意，主架構對但範圍待補</span></label>
+            </div>
+            <label class="field"><span>補充說明 <em class="optional">（可選）</em></span><textarea name="note" placeholder="例：v1 還有排程 / 管理後台 / 行動端…"></textarea></label>
+            <button type="submit" class="submit">送出 <span class="arrow">→</span></button>
+            <span class="form-status" aria-live="polite"></span>
+          </form>
+        </article>
+
+        <!-- ========== Q4 ========== -->
+        <article class="question" data-qid="Q5">
+          <header class="q-head">
+            <span class="q-id mono">Q5</span>
+            <span class="q-target q-target--operational">交接</span>
+          </header>
+          <h3 class="q-title">ewai-omni 這個 v1 前端 repo 的實體在哪？</h3>
+          <div class="q-body">
+            <p>omni-v2 的 npm 命名是 <code>ewai-omni-v2</code>、arova-ai-core 的 openspec 任務有提到「Run ewai-omni frontend test」，代表它曾經存在。但 <code>find ~/project/arova-ai</code> 找不到。</p>
+            <p class="q-note">優先度取決於 Q3 / Q4：若 OMNI v1 已退役，可延後；若仍有客戶在用，需馬上釐清。</p>
+          </div>
+          <form class="answer-form" data-qid="Q5" data-qtype="open">
+            <label class="field"><span>請說明 ewai-omni 的實際位置或狀態</span>
+              <textarea name="note" placeholder="例：在 GitHub org X / 已封存於 server Y / 已停用…" required></textarea>
+            </label>
+            <button type="submit" class="submit">送出 <span class="arrow">→</span></button>
+            <span class="form-status" aria-live="polite"></span>
+          </form>
+        </article>
+
+        <!-- ========== Q9 ========== -->
+        <article class="question question--large" data-qid="Q6">
+          <header class="q-head">
+            <span class="q-id mono">Q6</span>
+            <span class="q-target q-target--operational">交接</span>
+          </header>
+          <h3 class="q-title">Handoff 盤點：Kyle 本機還有哪些不在 repo 裡的產品資產？</h3>
+          <div class="q-body">
+            <p>Part 4 P1-1 延伸掃描後發現 <code>.claude/</code> 多處 Kyle 本機硬寫路徑，指向不在 repo 的 workspace（<code>mastra-learn/*</code>）、檔案（<code>sales-kit/</code>）與已改名的 repo（<code>arova-nexus → nexus-docs</code>）。同步進 repo 的資產可能不涵蓋產品全部範圍。</p>
+            <p class="q-note"><span class="mono">9 個子題 · 可分批回答</span>留空的子題會以空字串送出。可重複送出，Sheet 會 append。</p>
+          </div>
+          <form class="answer-form" data-qid="Q6" data-qtype="subtopics">
+
+            <fieldset class="subtopic-group">
+              <legend class="sub-legend mono">A · 本機產品資產（盤點核心）</legend>
+              <label class="field sub-field">
+                <span><span class="sub-num mono">6.1</span>本機 <code>/Users/kyle/Projects/arova/</code> 底下，還有哪些跟產品有關但不在 <code>arova-ai/</code> 目錄的 repo / 資料夾 / 未 commit 文件？</span>
+                <textarea name="6.1" data-sub="6.1" placeholder="例：runbook、客戶訪談紀錄、決策筆記、產品設定檔…"></textarea>
+              </label>
+              <label class="field sub-field">
+                <span><span class="sub-num mono">6.2</span>這些資產在 handoff 前是否會同步到共享位置？預計時程？</span>
+                <textarea name="6.2" data-sub="6.2"></textarea>
+              </label>
+            </fieldset>
+
+            <fieldset class="subtopic-group">
+              <legend class="sub-legend mono">B · mastra-learn workspace（影響 active openspec）</legend>
+              <label class="field sub-field">
+                <span><span class="sub-num mono">6.3</span><code>graylog-agent</code>、<code>librenms-agent</code>、<code>mastra-dev</code> 三個 workspace 的完成度？</span>
+                <textarea name="6.3" data-sub="6.3" placeholder="PoC、可用 skill、半成品…"></textarea>
+              </label>
+              <label class="field sub-field">
+                <span><span class="sub-num mono">6.4</span>nexus-docs 兩個 active openspec（graylog-api / librenms-api deep integration）實作時是否會直接依賴這三個 workspace？</span>
+                <textarea name="6.4" data-sub="6.4"></textarea>
+              </label>
+            </fieldset>
+
+            <fieldset class="subtopic-group">
+              <legend class="sub-legend mono">C · sales-kit</legend>
+              <label class="field sub-field">
+                <span><span class="sub-num mono">6.5</span><code>arova-ai-core/sales-kit/</code> 的內容是什麼？跟客戶泰國廠有關嗎？</span>
+                <textarea name="6.5" data-sub="6.5"></textarea>
+              </label>
+            </fieldset>
+
+            <fieldset class="subtopic-group">
+              <legend class="sub-legend mono">D · 開發環境設定</legend>
+              <label class="field sub-field">
+                <span><span class="sub-num mono">6.6</span>現行 Claude 環境（hook、skill、settings.local.json）哪些設定是運作所需、需保留？</span>
+                <textarea name="6.6" data-sub="6.6"></textarea>
+              </label>
+            </fieldset>
+
+            <fieldset class="subtopic-group">
+              <legend class="sub-legend mono">E · 後續追問（非 blocker）</legend>
+              <label class="field sub-field">
+                <span><span class="sub-num mono">6.7</span>除了 nexus-docs（Kyle 本機叫 arova-nexus）之外，還有哪些 repo 改過名？</span>
+                <textarea name="6.7" data-sub="6.7"></textarea>
+              </label>
+              <label class="field sub-field">
+                <span><span class="sub-num mono">6.8</span>mastra-learn 是否納入 handoff？軟體部接手後是否接續開發？</span>
+                <textarea name="6.8" data-sub="6.8"></textarea>
+              </label>
+              <label class="field sub-field">
+                <span><span class="sub-num mono">6.9</span>sales-kit handoff 後該由軟體部接，還是業務 / PM 接？</span>
+                <textarea name="6.9" data-sub="6.9"></textarea>
+              </label>
+            </fieldset>
+
+            <button type="submit" class="submit">全部送出 <span class="arrow">→</span></button>
+            <span class="form-status" aria-live="polite"></span>
+          </form>
+        </article>
+
+      </div>
+    </section>
+
+    <!-- ========== 04 Known Issues ========== -->
+    <section id="issues" class="dossier-section">
+      <header class="section-head">
+        <span class="section-num">04</span>
+        <p class="section-kicker mono">Known Issues</p>
+        <h2 class="section-title">深掃發現的問題（FYI）</h2>
+        <hr class="section-rule">
+      </header>
+
+      <p class="lede"><em class="rust-em">此區純 FYI，不收回覆。</em>只是 nexus-docs 深掃 + 跨 repo Kyle-only 環境依賴的彙整，發版前可分批修補。</p>
+
+      <div class="priority-group">
+        <div class="prio-head">
+          <span class="prio-chip prio-chip--p0 mono">P0</span>
+          <h3 class="prio-title">立即處理 · 安全 / git 慣例</h3>
+        </div>
+        <details>
+          <summary><span class="prio-chip prio-chip--p0 mono">P0-1</span><span class="iss-title">arova-ai-core/.claude/settings.local.json 在 git 中被追蹤</span></summary>
+          <p><strong>檔案：</strong><code>arova-ai-core/.claude/settings.local.json</code>（20+ 條 Kyle 本機硬寫）</p>
+          <p><strong>事實：</strong>已被 commit 到 repo。內容包括 <code>Read(//Users/kyle/.ssh/**)</code> 授權 Claude 讀 SSH 金鑰、3 條 symlink 指令指向 <code>mastra-learn/*</code>、多條 hardcode 到 Kyle 本機 repo 位置的 git/find/cat 指令、agent-browser 指令指向 <code>file:///Users/kyle/Projects/arova/arova-ai-core/sales-kit/index.html</code>。</p>
+          <p><strong>建議：</strong>(a) 從 git 移除並加進 <code>arova-ai-core/.gitignore</code>；(b) 共享設定遷移到 <code>settings.json</code>；(c) 審視 SSH 金鑰權限的必要性。</p>
+        </details>
+      </div>
+
+      <div class="priority-group">
+        <div class="prio-head">
+          <span class="prio-chip prio-chip--p1 mono">P1</span>
+          <h3 class="prio-title">立即處理 · 功能性錯誤</h3>
+        </div>
+        <details>
+          <summary><span class="prio-chip prio-chip--p1 mono">P1-1a</span><span class="iss-title">nexus-docs/.claude/skills/ 6 個 skill 寫死 PRD 路徑</span></summary>
+          <p><strong>檔案：</strong>arova-pm / arova-arch / arova-devops / arova-se / arova-qa / arova-docs 的 SKILL.md</p>
+          <p><strong>現況：</strong>全部寫死 <code>/Users/kyle/Projects/arova-ai/arova-nexus/Arova_Nexus_PRD_v1.3.md</code>；正確位置是 <code>./Arova_Nexus_PRD_v1.3.md</code>（相對 repo root）。</p>
+          <p><strong>影響：</strong>觸發任一 skill 時 Claude 會嘗試讀只在 Kyle 本機才有的路徑。</p>
+          <p><strong>建議：</strong>全部改為相對於 repo root 的路徑 <code>./Arova_Nexus_PRD_v1.3.md</code>。</p>
+        </details>
+        <details>
+          <summary><span class="prio-chip prio-chip--p1 mono">P1-1b</span><span class="iss-title">omni-v2/.claude/settings.json 的 Stop hook 寫死 Kyle 本機目錄</span></summary>
+          <p><strong>檔案：</strong><code>omni-v2/.claude/settings.json:8</code></p>
+          <p><strong>現況：</strong>Stop hook 為 <code>cd /Users/kyle/Projects/arova/omni-v2 && git diff --quiet ...</code></p>
+          <p><strong>影響：</strong>在 Kyle 本機以外的環境，cd 會失敗，後續 git diff 不會執行；指令失敗不會在 hook 介面上顯示。</p>
+          <p><strong>建議：</strong>移除 cd 前綴，直接用 <code>git diff --quiet</code>。Claude Code 執行 hook 時 cwd 即為 repo root。</p>
+        </details>
+      </div>
+
+      <div class="priority-group">
+        <div class="prio-head">
+          <span class="prio-chip prio-chip--p2 mono">P2</span>
+          <h3 class="prio-title">近期處理 · 文件一致性</h3>
+        </div>
+        <details>
+          <summary><span class="prio-chip prio-chip--p2 mono">P2-1</span><span class="iss-title">PRD User Stories 總數自相矛盾（233 vs 241）</span></summary>
+          <p><strong>檔案：</strong><code>nexus-docs/Arova_Nexus_PRD_v1.3.md</code></p>
+          <p>封面稱「全部完成：233 個 User Stories」，但同文件「模組歸屬彙整」表合計 <strong>241</strong>（Core 113 + Service Desk 21 + Incident 17 + Automation 28 + Knowledge 14 + Integration 15 + Analytics 8 + CMDB 25）。</p>
+          <p><strong>建議：</strong>確認正確數字後同步 PRD 封面、<code>nexus-docs/CLAUDE.md:45</code>、<code>docs/product-guide/00-overview.md</code>、<code>README.md</code>。</p>
+        </details>
+        <details>
+          <summary><span class="prio-chip prio-chip--p2 mono">P2-2</span><span class="iss-title">System_Architecture.md 狀態標註落後於事實</span></summary>
+          <p><strong>檔案：</strong><code>nexus-docs/docs/architecture/System_Architecture.md:3</code></p>
+          <p>狀態仍寫「提議（Proposed）」，但 <code>TECH_STACK.md</code> 已標「鎖定」、ADR-001/002/003 全部「已採納」、3 個 active openspec changes 都依此架構前進。</p>
+          <p><strong>建議：</strong>改為「已採納（Accepted）」並更新「最後更新」日期。</p>
+        </details>
+        <details>
+          <summary><span class="prio-chip prio-chip--p2 mono">P2-3</span><span class="iss-title">CLAUDE.md 列出的 customer/ 目錄不存在</span></summary>
+          <p><strong>檔案：</strong><code>nexus-docs/CLAUDE.md:23</code>（「Customer-specific documents（客戶泰國廠 series）」）</p>
+          <p>目錄在 repo 中不存在；<code>openspec/changes/*</code> 多次提到「客戶泰國廠 Phase 2.5 / 2.6」但內容不在 repo。</p>
+          <p><strong>建議：</strong>若尚未建立，CLAUDE.md 加 <code>(planned)</code> 或 <code>(external)</code> 標註；或刪除這條描述。</p>
+        </details>
+      </div>
+
+      <div class="priority-group">
+        <div class="prio-head">
+          <span class="prio-chip prio-chip--p3 mono">P3</span>
+          <h3 class="prio-title">追蹤中 · 已有 active change 或低優先</h3>
+        </div>
+        <details>
+          <summary><span class="prio-chip prio-chip--p3 mono">P3-1</span><span class="iss-title">Wireframe 單檔 217 KB 造成 AI agent token 浪費 ~30%</span></summary>
+          <p><strong>檔案：</strong><code>nexus-docs/docs/wireframes/nexus-mvp-wireframe.html</code>（3,587 行 / 554 處 inline style / 581 處 data-rough）</p>
+          <p>已有 active change <code>openspec/changes/wireframe-semantic-refactor/</code>，等待 implement。<strong>不需新動作</strong>，僅追蹤進度。</p>
+        </details>
+        <details>
+          <summary><span class="prio-chip prio-chip--p3 mono">P3-2</span><span class="iss-title">報表模板字型離線化未完成</span></summary>
+          <p><strong>檔案：</strong><code>nexus-docs/templates/README.md</code></p>
+          <p>README 寫了下載 Noto Sans TC 到 <code>templates/fonts/</code> 的指令，但 repo 中無 <code>fonts/</code> 目錄。客戶若無外網，puppeteer 產 PDF 時字型會 fallback——與「On-Prem First / 資料不離開客戶環境」架構約束有衝突。</p>
+          <p><strong>建議：</strong>CI 中將字型下載入 build artifact，或提交字型檔進 git。</p>
+        </details>
+        <details>
+          <summary><span class="prio-chip prio-chip--p3 mono">P3-3</span><span class="iss-title">arova-pm-workspace/ 的角色未在 CLAUDE.md 清楚說明</span></summary>
+          <p>同 repo 下有與主建置系統獨立的 PM 工作空間（含 60 KB 市場研究、html-to-pdf 工具、自己的 package.json），<code>npm run build</code> 不會碰到。新人易誤以為是文件站一部分並嘗試 build。</p>
+          <p><strong>建議：</strong>CLAUDE.md 加一行：「<code>arova-pm-workspace/</code> 是 PM 內部研究與 PDF 工具，獨立於建置系統，不會進 <code>site/</code>」。</p>
+        </details>
+      </div>
+    </section>
+  </main>
+</div>
+
+<footer class="dossier-footer">
+  <p class="footer-line">
+    <span class="mono">SOURCE</span> handoff-prep.md · 2026-04-24
+    <span class="footer-sep">·</span>
+    <span class="mono">VOL.01</span>
+  </p>
+</footer>
+
+<script src="./app.js" defer></script>
+</body>
+</html>

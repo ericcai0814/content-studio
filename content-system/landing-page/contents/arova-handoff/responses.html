@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AROVA-AI · Response Summary</title>
+  <meta name="description" content="各知情者對 AROVA-AI Handoff 問題的作答紀錄，依題目分組呈現。">
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Schibsted+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap">
+
+  <link rel="stylesheet" href="../../base.css">
+  <link rel="stylesheet" href="./responses.css">
+</head>
+<body>
+
+<!-- ========== Masthead ========== -->
+<header class="masthead">
+  <div class="masthead-inner">
+    <div class="masthead-meta">
+      <span class="mono">VOL. 01 · APR 2026</span>
+      <span class="dot">●</span>
+      <span class="mono">RESPONSE SUMMARY</span>
+    </div>
+    <h1 class="masthead-title">
+      <span class="title-row">AROVA-AI</span>
+      <span class="title-row title-row--em"><em>Response Summary</em></span>
+    </h1>
+    <p class="masthead-deck">各知情者的作答紀錄，依題目排列。</p>
+    <div class="masthead-toolbar">
+      <span class="toolbar-ts mono" id="last-updated"></span>
+      <button class="toolbar-refresh mono" id="refresh-btn" type="button">重新整理 <span class="arrow">→</span></button>
+    </div>
+    <div class="masthead-rule"></div>
+  </div>
+</header>
+
+<!-- ========== Main ========== -->
+<main class="responses-main">
+  <div id="state-loading" class="state-panel state-loading" hidden>
+    <p class="mono">載入中…</p>
+  </div>
+  <div id="state-error" class="state-panel state-error" hidden>
+    <p class="error-msg" id="error-msg"></p>
+    <button class="retry-btn" id="retry-btn" type="button">重試 →</button>
+  </div>
+  <div id="responses-content" hidden></div>
+</main>
+
+<footer class="footer">
+  <div class="footer-inner">
+    <span class="mono">AROVA-AI · Internal Handoff · v2 · 2026-04-27</span>
+    <a href="./index.html" class="footer-link mono">← 回填答頁</a>
+  </div>
+</footer>
+
+<script src="./responses.js" defer></script>
+</body>
+</html>

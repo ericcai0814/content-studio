@@ -1,0 +1,676 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<title>AI 越強 坑越深 — Cowork PK 版</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,700;9..144,900&family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;700&family=Noto+Sans+TC:wght@300;400;500;700&family=Noto+Serif+TC:wght@500;700;900&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#0E0D0B;
+  --surface:#17161A;
+  --surface-2:#22202A;
+  --divider:#2A2730;
+  --text:#EDEAE3;
+  --text-dim:#A09C95;
+  --text-muted:#6B6860;
+  --accent:#F5A623;
+  --accent-2:#E76F51;
+  --accent-3:#7FB069;
+  --w:1080px; --h:1350px;
+  --pad:88px;
+  --font-display:"Fraunces","Noto Serif TC",serif;
+  --font-body:"Inter","Noto Sans TC",sans-serif;
+  --font-mono:"JetBrains Mono","SF Mono",monospace;
+}
+
+*{box-sizing:border-box;margin:0;padding:0}
+body{
+  padding:40px;
+  display:flex;gap:40px;
+  overflow-x:auto;
+  background:#1a1a1a;
+  min-height:100vh;
+  align-items:flex-start;
+}
+
+.page{
+  position:relative;
+  width:var(--w);height:var(--h);
+  flex-shrink:0;
+  display:flex;flex-direction:column;
+  background:var(--bg);
+  color:var(--text);
+  overflow:hidden;
+  box-shadow:0 20px 60px rgba(0,0,0,.5);
+}
+
+/* subtle warm grain */
+.page::before{
+  content:"";
+  position:absolute;inset:0;z-index:1;pointer-events:none;
+  background-image:url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.08'/%3E%3C/svg%3E");
+}
+
+/* corner mark on every page */
+.page::after{
+  content:"";
+  position:absolute;top:48px;right:48px;width:12px;height:12px;
+  background:var(--accent);
+  border-radius:50%;
+  z-index:3;
+  box-shadow:0 0 24px var(--accent);
+}
+
+.inner{
+  position:relative;z-index:2;
+  display:flex;flex-direction:column;
+  height:100%;
+  padding:var(--pad);
+}
+
+/* page number */
+.pgnum{
+  position:absolute;bottom:48px;left:48px;
+  font:500 16px/1 var(--font-mono);
+  color:var(--text-muted);
+  letter-spacing:.1em;
+  z-index:3;
+}
+
+.kicker{
+  font:500 22px/1 var(--font-mono);
+  color:var(--accent);
+  text-transform:uppercase;
+  letter-spacing:.18em;
+  margin-bottom:32px;
+}
+
+.h-display{
+  font:700 128px/1.02 var(--font-display);
+  font-variation-settings:"opsz" 144;
+  color:var(--text);
+  letter-spacing:-.02em;
+}
+
+.h-title{
+  font:700 76px/1.08 var(--font-display);
+  font-variation-settings:"opsz" 96;
+  color:var(--text);
+  letter-spacing:-.015em;
+  margin-bottom:40px;
+}
+
+.body{
+  font:400 34px/1.65 var(--font-body);
+  color:var(--text-dim);
+  margin-bottom:28px;
+}
+.body:last-child{margin-bottom:0}
+.body strong{color:var(--text);font-weight:600}
+.body em{font-style:italic;color:var(--accent);font-family:var(--font-display);font-weight:500}
+
+.small{
+  font:400 24px/1.6 var(--font-body);
+  color:var(--text-muted);
+}
+
+.mono{font-family:var(--font-mono)}
+.mt-auto{margin-top:auto}
+
+/* ── COVER ── */
+.cover-kicker{
+  font:500 24px/1 var(--font-mono);
+  color:var(--accent);
+  text-transform:uppercase;
+  letter-spacing:.22em;
+  margin-bottom:24px;
+}
+.cover-title{
+  font:900 170px/.92 var(--font-display);
+  font-variation-settings:"opsz" 144;
+  color:var(--text);
+  letter-spacing:-.04em;
+  margin:0;
+}
+.cover-title .accent{color:var(--accent);font-style:italic;font-weight:700}
+.cover-rule{width:120px;height:3px;background:var(--accent);margin:48px 0 40px}
+.cover-desc{
+  font:400 32px/1.55 var(--font-body);
+  color:var(--text-dim);
+  max-width:720px;
+}
+.cover-meta{
+  margin-top:auto;
+  display:flex;justify-content:space-between;align-items:flex-end;
+  font:500 18px/1 var(--font-mono);
+  color:var(--text-muted);
+  letter-spacing:.14em;
+  text-transform:uppercase;
+}
+
+/* ── CALLOUT (pull-quote) ── */
+.callout{
+  margin-top:auto;
+  padding:40px 44px;
+  background:var(--surface);
+  border-left:4px solid var(--accent);
+  border-radius:2px;
+  font:500 34px/1.55 var(--font-body);
+  color:var(--text);
+}
+.callout strong{color:var(--accent);font-weight:700}
+
+/* ── HIGHLIGHT ── */
+.highlight{
+  margin-top:auto;
+  padding:44px 44px 48px;
+  background:linear-gradient(135deg,var(--surface),var(--surface-2));
+  border:1px solid var(--divider);
+  border-radius:4px;
+  position:relative;
+}
+.highlight::before{
+  content:"";
+  position:absolute;top:0;left:0;width:4px;height:100%;
+  background:var(--accent);
+}
+.highlight-text{
+  font:600 36px/1.45 var(--font-body);
+  color:var(--text);
+}
+.highlight-text .amber{color:var(--accent)}
+
+/* ── STORY TITLE PAGES ── */
+.story-stack{display:flex;flex-direction:column;height:100%;justify-content:center}
+.story-num{
+  font:900 240px/1 var(--font-display);
+  font-variation-settings:"opsz" 144;
+  color:var(--surface-2);
+  letter-spacing:-.04em;
+  margin-bottom:-60px;
+  margin-left:-12px;
+}
+.story-label{
+  font:500 22px/1 var(--font-mono);
+  color:var(--accent);
+  text-transform:uppercase;
+  letter-spacing:.22em;
+  margin-bottom:32px;
+}
+.story-title{
+  font:700 92px/1.05 var(--font-display);
+  font-variation-settings:"opsz" 144;
+  color:var(--text);
+  letter-spacing:-.02em;
+  margin-bottom:40px;
+}
+.story-title .mono{
+  font-family:var(--font-mono);
+  font-weight:500;
+  font-size:68px;
+  color:var(--accent);
+  letter-spacing:-.01em;
+}
+.story-sub{
+  font:400 32px/1.55 var(--font-body);
+  color:var(--text-dim);
+  max-width:760px;
+}
+
+/* ── STEPS ── */
+.steps{display:flex;flex-direction:column;gap:0}
+.step{
+  display:grid;grid-template-columns:80px 1fr;gap:32px;
+  padding:28px 0;
+  border-bottom:1px solid var(--divider);
+  align-items:baseline;
+}
+.step:last-child{border-bottom:none}
+.step-num{
+  font:500 26px/1 var(--font-mono);
+  color:var(--accent);
+  letter-spacing:.05em;
+}
+.step-num.bad{color:var(--accent-2)}
+.step-t{
+  font:600 38px/1.3 var(--font-body);
+  color:var(--text);
+}
+.step-d{
+  font:400 28px/1.55 var(--font-body);
+  color:var(--text-dim);
+  margin-top:10px;
+}
+
+/* ── COMPARE ── */
+.compare{
+  display:grid;grid-template-columns:1fr 1fr;gap:32px;
+  margin:8px 0 32px;
+}
+.compare-col{
+  padding:32px 32px 28px;
+  background:var(--surface);
+  border:1px solid var(--divider);
+  border-radius:4px;
+}
+.compare-col.bad{border-top:3px solid var(--accent-2)}
+.compare-col.good{border-top:3px solid var(--accent-3)}
+.compare-head{
+  font:500 20px/1 var(--font-mono);
+  text-transform:uppercase;
+  letter-spacing:.18em;
+  padding-bottom:14px;
+  margin-bottom:18px;
+  border-bottom:1px solid var(--divider);
+}
+.compare-head.bad{color:var(--accent-2)}
+.compare-head.good{color:var(--accent-3)}
+.compare-row{
+  padding:14px 0;
+  font:400 28px/1.5 var(--font-body);
+  color:var(--text-dim);
+  border-bottom:1px dashed rgba(255,255,255,.05);
+}
+.compare-row:last-child{border-bottom:none}
+.compare-col.good .compare-row{color:var(--text)}
+
+/* ── LOG (chat replacement) ── */
+.log{
+  background:var(--surface);
+  border:1px solid var(--divider);
+  border-radius:6px;
+  overflow:hidden;
+  margin:8px 0 24px;
+}
+.log-bar{
+  display:flex;align-items:center;gap:8px;
+  padding:14px 20px;
+  background:var(--surface-2);
+  border-bottom:1px solid var(--divider);
+}
+.log-dot{width:12px;height:12px;border-radius:50%}
+.log-dot.r{background:#ff5f57}
+.log-dot.y{background:#febc2e}
+.log-dot.g{background:#28c840}
+.log-title{
+  margin-left:auto;
+  font:500 18px/1 var(--font-mono);
+  color:var(--text-muted);
+  letter-spacing:.06em;
+}
+.log-body{padding:28px 32px 24px}
+.log-line{
+  display:grid;grid-template-columns:90px 1fr;gap:24px;
+  padding:12px 0;
+  font:400 27px/1.5 var(--font-body);
+  color:var(--text);
+}
+.log-line + .log-line{border-top:1px dashed var(--divider)}
+.log-role{
+  font:600 22px/1.2 var(--font-mono);
+  letter-spacing:.06em;
+  padding-top:4px;
+}
+.log-role.user{color:var(--accent)}
+.log-role.ai{color:var(--accent-3)}
+
+/* ── SPEC / TASK DEMO ── */
+.demo{
+  display:grid;grid-template-columns:1fr;gap:0;
+  border:1px solid var(--divider);border-radius:6px;overflow:hidden;
+  margin:8px 0 24px;
+}
+.demo-row{padding:28px 32px}
+.demo-row.cmd{background:var(--surface-2);border-bottom:1px solid var(--divider)}
+.demo-row.res{background:var(--surface)}
+.demo-label{
+  font:500 18px/1 var(--font-mono);
+  text-transform:uppercase;letter-spacing:.14em;
+  color:var(--text-muted);
+  margin-bottom:12px;
+}
+.demo-text{font:500 30px/1.5 var(--font-body);color:var(--text)}
+.demo-text.ok{color:var(--accent-3)}
+
+.miss-list{display:flex;flex-direction:column;gap:0;margin-top:16px}
+.miss-item{
+  display:grid;grid-template-columns:44px 1fr;gap:20px;align-items:center;
+  padding:18px 0;
+  border-bottom:1px solid var(--divider);
+}
+.miss-item:last-child{border-bottom:none}
+.miss-icon{
+  width:32px;height:32px;border-radius:50%;
+  background:rgba(231,111,81,.18);
+  color:var(--accent-2);
+  font:700 18px/32px var(--font-mono);
+  text-align:center;
+}
+.miss-text{font:500 32px/1.4 var(--font-body);color:var(--text)}
+
+/* ── SUMMARY CARDS ── */
+.sum-grid{display:flex;flex-direction:column;gap:20px}
+.sum-item{
+  padding:32px 36px;
+  background:var(--surface);
+  border:1px solid var(--divider);
+  border-left:4px solid var(--accent);
+  border-radius:4px;
+  display:grid;grid-template-columns:72px 1fr;gap:28px;align-items:center;
+}
+.sum-num{
+  font:700 64px/1 var(--font-display);
+  font-variation-settings:"opsz" 96;
+  color:var(--accent);
+  letter-spacing:-.02em;
+}
+.sum-body-t{font:600 34px/1.3 var(--font-body);color:var(--text);margin-bottom:6px}
+.sum-body-d{font:400 26px/1.45 var(--font-body);color:var(--text-dim)}
+
+/* ── FLOW (diagram) ── */
+.flow{
+  display:grid;grid-template-columns:1fr auto 1fr auto 1fr;
+  align-items:stretch;gap:16px;
+  margin:8px 0 24px;
+}
+.flow-node{
+  padding:28px 24px;
+  background:var(--surface);
+  border:1px solid var(--divider);
+  border-radius:6px;
+  text-align:center;
+}
+.flow-node.active{
+  background:linear-gradient(135deg,rgba(245,166,35,.14),rgba(245,166,35,.04));
+  border-color:var(--accent);
+}
+.flow-node .fn-step{
+  font:500 18px/1 var(--font-mono);
+  color:var(--accent);
+  text-transform:uppercase;letter-spacing:.18em;
+  margin-bottom:14px;
+}
+.flow-node .fn-t{font:700 32px/1.2 var(--font-body);color:var(--text);margin-bottom:10px}
+.flow-node .fn-d{font:400 22px/1.4 var(--font-body);color:var(--text-dim)}
+.flow-arrow{
+  align-self:center;
+  font:300 44px/1 var(--font-body);
+  color:var(--text-muted);
+}
+
+/* ── FINAL CTA ── */
+.cta-spec{
+  margin-top:auto;
+  padding:48px 48px 52px;
+  background:linear-gradient(135deg,rgba(245,166,35,.12),rgba(245,166,35,.02));
+  border:1px solid rgba(245,166,35,.3);
+  border-radius:4px;
+  text-align:left;
+  position:relative;
+  overflow:hidden;
+}
+.cta-spec::before{
+  content:"";position:absolute;top:0;right:0;width:180px;height:180px;
+  background:radial-gradient(circle at 100% 0%,rgba(245,166,35,.18),transparent 70%);
+}
+.cta-spec-mono{
+  font:500 22px/1 var(--font-mono);
+  color:var(--accent);
+  letter-spacing:.14em;
+  margin-bottom:20px;
+}
+.cta-spec-main{
+  font:700 54px/1.15 var(--font-display);
+  font-variation-settings:"opsz" 96;
+  color:var(--text);
+  letter-spacing:-.015em;
+}
+.cta-handle{
+  margin-top:auto;
+  display:flex;justify-content:space-between;
+  font:500 18px/1 var(--font-mono);
+  color:var(--text-muted);
+  letter-spacing:.14em;
+  text-transform:uppercase;
+  padding-top:28px;
+}
+</style>
+</head>
+<body>
+
+<!-- P1: COVER -->
+<div class="page"><div class="inner">
+  <p class="cover-kicker">Story · Three case studies from production</p>
+  <h1 class="cover-title">AI 越強<br><span class="accent">坑越深</span></h1>
+  <div class="cover-rule"></div>
+  <p class="cover-desc">3 個 AI 輔助開發的真實踩坑故事<br>每個都是我們自己踩過的</p>
+  <div class="cover-meta">
+    <span>@ericcai</span>
+    <span>01 / 12</span>
+  </div>
+</div></div>
+
+<!-- P2: HOOK -->
+<div class="page"><div class="inner">
+  <p class="kicker">The illusion of correctness</p>
+  <h2 class="h-title">AI 給的建議<br>看起來都很合理</h2>
+  <p class="body">語法正確、邏輯通順、<span class="mono" style="color:var(--accent-3)">build</span> 會過。</p>
+  <p class="body">但<strong>「技術上正確」</strong>和<strong>「實際上能用」</strong>之間，<br>有一條你看不見的線。</p>
+  <div class="callout">
+    AI 有<strong>資深工程師</strong>的能力，<br>但只有<strong>初階工程師</strong>的判斷力。
+  </div>
+  <div class="pgnum">02 / 12</div>
+</div></div>
+
+<!-- P3: STORY 01 — .dockerignore -->
+<div class="page"><div class="inner">
+  <div class="story-stack">
+    <div class="story-num">01</div>
+    <p class="story-label">Case · Misconfiguration</p>
+    <h2 class="story-title"><span class="mono">.dockerignore</span><br>配置沒有審核</h2>
+    <p class="story-sub">AI 的建議看起來合理，<br>但它不了解你的上下文。</p>
+  </div>
+  <div class="pgnum">03 / 12</div>
+</div></div>
+
+<!-- P4: STORY 01 — what happened -->
+<div class="page"><div class="inner">
+  <p class="kicker">What happened</p>
+  <h2 class="h-title">三步驟通往空白頁</h2>
+  <div class="steps">
+    <div class="step">
+      <div class="step-num">STEP 01</div>
+      <div>
+        <div class="step-t">AI 建議加上 <span class="mono" style="color:var(--accent)">*.md</span></div>
+        <div class="step-d">排除文檔、減少 Docker image 大小。聽起來很合理。</div>
+      </div>
+    </div>
+    <div class="step">
+      <div class="step-num">STEP 02</div>
+      <div>
+        <div class="step-t">Build 成功、部署完成</div>
+        <div class="step-d">一切正常，沒有任何錯誤。</div>
+      </div>
+    </div>
+    <div class="step">
+      <div class="step-num bad">STEP 03</div>
+      <div>
+        <div class="step-t">打開網站 — 全部空白</div>
+        <div class="step-d">網頁靜態內容全靠 <span class="mono" style="color:var(--accent)">content/*.md</span>，glob pattern 遞迴匹配把它們全排除了。</div>
+      </div>
+    </div>
+  </div>
+  <div class="pgnum">04 / 12</div>
+</div></div>
+
+<!-- P5: STORY 01 — lesson -->
+<div class="page"><div class="inner">
+  <p class="kicker">Lesson 01</p>
+  <h2 class="h-title">AI 看到的 vs. 它不知道的</h2>
+  <div class="compare">
+    <div class="compare-col bad">
+      <div class="compare-head bad">AI 看到的</div>
+      <div class="compare-row">*.md 是文檔檔案</div>
+      <div class="compare-row">排除可以減少 image 大小</div>
+      <div class="compare-row">技術上完全正確</div>
+    </div>
+    <div class="compare-col good">
+      <div class="compare-head good">它不知道的</div>
+      <div class="compare-row">content/*.md 是網頁內容來源</div>
+      <div class="compare-row">glob 會遞迴匹配所有層級</div>
+      <div class="compare-row">需要 !content/** 例外規則</div>
+    </div>
+  </div>
+  <div class="highlight">
+    <div class="highlight-text">AI 不了解你的<span class="amber">上下文</span>，<br>它的建議需要你的<span class="amber">判斷</span>。</div>
+  </div>
+  <div class="pgnum">05 / 12</div>
+</div></div>
+
+<!-- P6: STORY 02 title -->
+<div class="page"><div class="inner">
+  <div class="story-stack">
+    <div class="story-num">02</div>
+    <p class="story-label">Case · Silent data gap</p>
+    <h2 class="story-title">Mock Data<br>缺欄位</h2>
+    <p class="story-sub">AI 不會質疑你的數據。<br>你給它什麼，它就用什麼。</p>
+  </div>
+  <div class="pgnum">06 / 12</div>
+</div></div>
+
+<!-- P7: STORY 02 — log / conversation -->
+<div class="page"><div class="inner">
+  <p class="kicker">Transcript · session log</p>
+  <h2 class="h-title">對話重建現場</h2>
+  <div class="log">
+    <div class="log-bar">
+      <div class="log-dot r"></div><div class="log-dot y"></div><div class="log-dot g"></div>
+      <div class="log-title">claude-session · e2e-test.log</div>
+    </div>
+    <div class="log-body">
+      <div class="log-line"><div class="log-role user">USER</div><div>幫我寫 E2E 測試，測 SEO 的 JSON-LD 輸出</div></div>
+      <div class="log-line"><div class="log-role ai">CLAUDE</div><div>好的，我來為 JSON-LD 寫完整的 E2E 測試⋯</div></div>
+      <div class="log-line"><div class="log-role user">USER</div><div>Unit test 全過，但 E2E 一跑就爆？</div></div>
+      <div class="log-line"><div class="log-role ai">CLAUDE</div><div>讓我檢查⋯ mock data 的 JSON 從頭到尾就沒有 <span class="mono" style="color:var(--accent)">jsonLd</span> 這個欄位。</div></div>
+    </div>
+  </div>
+  <div class="callout">
+    AI 不會回頭跟你確認：<br><strong>「這個 data 好像少了什麼？」</strong>
+  </div>
+  <div class="pgnum">07 / 12</div>
+</div></div>
+
+<!-- P8: STORY 03 title -->
+<div class="page"><div class="inner">
+  <div class="story-stack">
+    <div class="story-num">03</div>
+    <p class="story-label">Case · Incomplete spec</p>
+    <h2 class="story-title">數據遷移<br>丟失結構</h2>
+    <p class="story-sub">AI 完美執行了<br>一份不完整的 Spec。</p>
+  </div>
+  <div class="pgnum">08 / 12</div>
+</div></div>
+
+<!-- P9: STORY 03 — what happened -->
+<div class="page"><div class="inner">
+  <p class="kicker">What happened</p>
+  <h2 class="h-title">「已完成」的真相</h2>
+  <div class="demo">
+    <div class="demo-row cmd">
+      <div class="demo-label">SPEC · instruction</div>
+      <div class="demo-text mono">「把 stub 數據替換成真實內容」</div>
+    </div>
+    <div class="demo-row res">
+      <div class="demo-label">AI · result</div>
+      <div class="demo-text ok">✓ 內容已替換完成</div>
+    </div>
+  </div>
+  <p class="body">但替換完才發現：</p>
+  <div class="miss-list">
+    <div class="miss-item"><div class="miss-icon">✕</div><div class="miss-text">subtitle 欄位資料不見了</div></div>
+    <div class="miss-item"><div class="miss-icon">✕</div><div class="miss-text">圖片路徑全部指向錯誤</div></div>
+    <div class="miss-item"><div class="miss-icon">✕</div><div class="miss-text">區塊類型的語意被改掉</div></div>
+  </div>
+  <div class="pgnum">09 / 12</div>
+</div></div>
+
+<!-- P10: Summary -->
+<div class="page"><div class="inner">
+  <p class="kicker">Recap</p>
+  <h2 class="h-title">三個故事<br>三種坑</h2>
+  <div class="sum-grid">
+    <div class="sum-item">
+      <div class="sum-num">01</div>
+      <div>
+        <div class="sum-body-t">AI 不了解你的上下文</div>
+        <div class="sum-body-d">它的建議需要你的判斷</div>
+      </div>
+    </div>
+    <div class="sum-item">
+      <div class="sum-num">02</div>
+      <div>
+        <div class="sum-body-t">AI 不會質疑你的數據</div>
+        <div class="sum-body-d">輸入有問題它不會告訴你</div>
+      </div>
+    </div>
+    <div class="sum-item">
+      <div class="sum-num">03</div>
+      <div>
+        <div class="sum-body-t">AI 會完美執行錯誤的指令</div>
+        <div class="sum-body-d">Spec 寫不好比不寫更危險</div>
+      </div>
+    </div>
+  </div>
+  <div class="pgnum">10 / 12</div>
+</div></div>
+
+<!-- P11: Solution — Research first -->
+<div class="page"><div class="inner">
+  <p class="kicker">Solution</p>
+  <h2 class="h-title">先 Research<br>再行動</h2>
+  <p class="body">三個坑的共同原因：<br>直接讓 AI 動手，卻沒有先讓它理解現場。</p>
+  <div class="flow">
+    <div class="flow-node">
+      <div class="fn-step">Step 01</div>
+      <div class="fn-t">讀現況</div>
+      <div class="fn-d">現有程式碼、設定、<br>數據結構</div>
+    </div>
+    <div class="flow-arrow">→</div>
+    <div class="flow-node">
+      <div class="fn-step">Step 02</div>
+      <div class="fn-t">寫 Spec</div>
+      <div class="fn-d">定義邊界、保留項、<br>驗收條件</div>
+    </div>
+    <div class="flow-arrow">→</div>
+    <div class="flow-node active">
+      <div class="fn-step">Step 03</div>
+      <div class="fn-t">再執行</div>
+      <div class="fn-d">在約束內行動，<br>偏差最小化</div>
+    </div>
+  </div>
+  <div class="callout">
+    慢一點的開頭，換更穩的結尾。
+  </div>
+  <div class="pgnum">11 / 12</div>
+</div></div>
+
+<!-- P12: CTA -->
+<div class="page"><div class="inner">
+  <p class="kicker">Takeaway</p>
+  <h2 class="h-display">寫得模糊<br><span style="color:var(--accent);font-style:italic">AI 就精準地做錯</span></h2>
+  <div class="cover-rule" style="margin:48px 0"></div>
+  <p class="body">AI 導入的不只是寫 code 的能力，<br>而是一整條從需求到上線的端到端流程。</p>
+  <div class="cta-spec">
+    <div class="cta-spec-mono">$ spec &gt; code</div>
+    <div class="cta-spec-main">先寫規格，再寫程式。<br><span style="color:var(--accent)">Spec Before Code.</span></div>
+  </div>
+  <div class="cta-handle">
+    <span>@ericcai</span>
+    <span>12 / 12</span>
+  </div>
+</div></div>
+
+</body>
+</html>

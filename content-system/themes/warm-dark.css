@@ -1,0 +1,563 @@
+/* ═══════════════════════════════════════════
+   Theme: Warm Dark — 暖黑底 + 琥珀警示色 + 襯線 + Mono
+   設計語言：depth / postmortem / developer-console。
+   適合講技術踩坑、事故分析、開發流程反思類型的主題。
+   HTML <head> 需載入 Noto Sans TC / Noto Serif TC（base 既有）；
+   Fraunces / Inter / JetBrains Mono 由本 theme 自行 @import。
+   ═══════════════════════════════════════════ */
+
+@import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700;9..144,900&family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap');
+
+/* ── Design Tokens ── */
+:root {
+    --bg: #0E0D0B;
+    --primary: #EDEAE3;
+    --secondary: #A09C95;
+    --muted: #6B6860;
+    --border: #2A2730;
+    --card-light: #17161A;
+    --card-dark: #22202A;
+    --red: #E76F51;
+    --green: #7FB069;
+    --font-display: "Fraunces", "Noto Serif TC", Georgia, serif;
+    --font-heading: "Fraunces", "Noto Serif TC", Georgia, serif;
+    --font-body: "Inter", "Noto Sans TC", system-ui, sans-serif;
+    --w: 1080px;
+    --h: 1350px;
+    --pad: 88px;
+    --logo: none;
+
+    /* Warm-dark specific */
+    --accent: #F5A623;        /* amber — emphasis / warning */
+    --accent-ink: #1A1308;    /* readable-on-amber text */
+    --surface-2: #2A2730;     /* 比 card-dark 再高一階的層 */
+    --font-mono: "JetBrains Mono", "SF Mono", ui-monospace, monospace;
+}
+
+/* ═══════════════════════════════════════════
+   PAGE-LEVEL FLOURISHES — 所有頁面共用的視覺標記
+   ═══════════════════════════════════════════ */
+
+/* 每頁右上角的琥珀 status dot — 暗示這是一篇「on-call 紀錄」 */
+.page { counter-increment: pg; }
+.page::after {
+    content: "";
+    position: absolute;
+    top: 48px; right: 48px;
+    width: 10px; height: 10px;
+    border-radius: 50%;
+    background: var(--accent);
+    box-shadow: 0 0 16px rgba(245,166,35,.6);
+    z-index: 3;
+}
+
+/* 左下角 mono 頁碼，走 CSS counter 自動編號 */
+.page .inner::after {
+    content: counter(pg, decimal-leading-zero);
+    position: absolute;
+    bottom: 32px; left: var(--pad);
+    font: 500 14px/1 var(--font-mono);
+    color: var(--muted);
+    letter-spacing: .22em;
+    z-index: 3;
+}
+
+/* ═══════════════════════════════════════════
+   BLOCKS — 視覺區塊
+   ═══════════════════════════════════════════ */
+
+/* ── Cover 封面元素 ── */
+.cover-title {
+    font: 900 120px/1.02 var(--font-display);
+    font-variation-settings: "opsz" 144;
+    color: var(--primary);
+    letter-spacing: -.025em;
+    margin: 16px 0;
+}
+
+.cover-sub {
+    font: 500 22px/1.4 var(--font-mono);
+    color: var(--accent);
+    text-transform: uppercase;
+    letter-spacing: .18em;
+    margin: 0 0 12px;
+}
+
+.deco {
+    width: 120px; height: 3px;
+    background: var(--accent);
+    margin: 36px 0 32px;
+}
+
+.cover-desc {
+    font: 400 32px/1.55 var(--font-body);
+    color: var(--secondary);
+    margin-top: 8px;
+}
+
+/* ── Typography 文字 ── */
+.page-title {
+    font: 700 72px/1.08 var(--font-heading);
+    font-variation-settings: "opsz" 96;
+    color: var(--primary);
+    letter-spacing: -.015em;
+    margin-bottom: 36px;
+}
+
+.body {
+    font: 400 34px/1.65 var(--font-body);
+    color: var(--secondary);
+    margin-bottom: 28px;
+}
+.body:last-child { margin-bottom: 0; }
+.body strong { font-weight: 600; color: var(--primary); }
+
+.small {
+    font: 500 22px/1.4 var(--font-mono);
+    color: var(--accent);
+    letter-spacing: .15em;
+    text-transform: uppercase;
+}
+
+/* ── Callout 引言框 ── */
+.callout {
+    padding: 36px 40px;
+    border-left: 4px solid var(--accent);
+    background: var(--card-light);
+    border-radius: 2px;
+    font: 500 32px/1.55 var(--font-body);
+    color: var(--primary);
+}
+.callout strong { color: var(--accent); font-weight: 700; }
+
+/* ── Highlight Card 深色強調卡 ── */
+.highlight-card {
+    padding: 44px 44px 48px;
+    border-left: 4px solid var(--accent);
+    border-radius: 4px;
+    background: linear-gradient(135deg, var(--card-light), var(--card-dark));
+    border: 1px solid var(--border);
+    border-left: 4px solid var(--accent);
+}
+.highlight-card .h-text {
+    font: 600 34px/1.45 var(--font-body);
+    color: var(--primary);
+}
+.highlight-card .h-text strong { color: var(--accent); font-weight: 700; }
+.highlight-card .h-sub {
+    margin-top: 16px;
+    font: 400 24px/1.55 var(--font-body);
+    color: var(--secondary);
+}
+
+/* ── Step List 編號步驟 ── */
+.steps {
+    display: flex; flex-direction: column;
+    gap: 0;
+}
+.step {
+    display: flex; align-items: baseline; gap: 28px;
+    padding: 26px 0;
+    border-bottom: 1px solid var(--border);
+}
+.step:last-child { border-bottom: none; }
+
+.step-num {
+    flex-shrink: 0; width: 64px;
+    font: 500 22px/1 var(--font-mono);
+    color: var(--accent);
+    letter-spacing: .08em;
+}
+.step-t {
+    font: 600 36px/1.3 var(--font-body);
+    color: var(--primary);
+}
+.step-d {
+    font: 400 28px/1.55 var(--font-body);
+    color: var(--secondary);
+    margin-top: 8px;
+}
+
+/* ── Arrow Steps 箭頭步驟 ── */
+.arrow-steps {
+    display: flex; flex-direction: column;
+    gap: 12px;
+    margin: 12px 0 32px;
+}
+.arrow-step {
+    width: 100%;
+    padding: 32px 40px 40px;
+    text-align: center;
+    color: var(--primary);
+    background: var(--card-light);
+    border: 1px solid var(--border);
+    clip-path: polygon(0 0, 100% 0, 100% calc(100% - 22px), 50% 100%, 0 calc(100% - 22px));
+}
+.arrow-step .arrow-t {
+    font: 600 30px/1.3 var(--font-body);
+    color: var(--accent);
+}
+.arrow-step .arrow-d {
+    font: 400 24px/1.4 var(--font-body);
+    color: var(--secondary);
+    margin-top: 4px;
+}
+
+/* ── Flow Chips 流程箭頭 ── */
+.flow-row {
+    display: flex;
+    align-items: center; justify-content: center;
+    gap: 16px;
+    margin: 20px calc(var(--pad) * -1) 36px;
+    padding: 36px var(--pad);
+    background: var(--card-light);
+    flex-wrap: wrap;
+}
+.flow-chip {
+    flex: 1;
+    padding: 18px 28px;
+    border-radius: 8px;
+    background: var(--card-dark);
+    color: var(--primary);
+    font: 600 26px/1.3 var(--font-body);
+    text-align: center;
+    border: 1px solid var(--border);
+}
+.flow-chip.green { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+.flow-arrow {
+    font: 300 32px/1 var(--font-body);
+    color: var(--muted);
+}
+
+/* ── Compare Columns 對比欄 ── */
+.compare {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 24px;
+    margin: 12px 0 36px;
+}
+.compare-col {
+    padding: 28px 28px 24px;
+    background: var(--card-light);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    border-top: 3px solid var(--border);
+}
+.compare-col.bad  { border-top-color: var(--red); }
+.compare-col.good { border-top-color: var(--green); }
+.compare-head {
+    padding-bottom: 12px;
+    margin-bottom: 14px;
+    border-bottom: 1px solid var(--border);
+    font: 500 20px/1 var(--font-mono);
+    color: var(--accent);
+    text-transform: uppercase;
+    letter-spacing: .16em;
+}
+.compare-head.bad  { color: var(--red); }
+.compare-head.good { color: var(--green); }
+.compare-row {
+    padding: 12px 0;
+    border-bottom: 1px dashed rgba(160,156,149,.15);
+    font: 400 26px/1.5 var(--font-body);
+    color: var(--primary);
+}
+.compare-row:last-child { border-bottom: none; }
+.compare-col:first-child { opacity: .75; }
+.compare-col:first-child .compare-row { color: var(--secondary); }
+
+/* ── Chat Bubbles 對話氣泡 ──
+   用「console log」的美學詮釋：圓角降低、label 走 mono。 */
+.chat {
+    display: flex; flex-direction: column;
+    gap: 14px;
+    margin: 12px 0 32px;
+    padding: 24px 28px;
+    background: var(--card-light);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+}
+.bubble {
+    max-width: 82%;
+    padding: 20px 26px;
+    border-radius: 8px;
+    font: 400 26px/1.55 var(--font-body);
+}
+.bubble.user {
+    align-self: flex-end;
+    background: var(--card-dark);
+    color: var(--primary);
+    border: 1px solid var(--border);
+}
+.bubble.ai {
+    align-self: flex-start;
+    background: transparent;
+    color: var(--primary);
+    border: 1px solid var(--border);
+}
+.bubble .label {
+    font: 600 18px/1 var(--font-mono);
+    margin-bottom: 8px;
+    text-transform: uppercase;
+    letter-spacing: .1em;
+}
+.bubble.user .label { color: var(--accent); }
+.bubble.ai .label   { color: var(--green); }
+
+/* ── Quote Block 引言區塊 ── */
+.quote-block {
+    padding: 40px;
+    background: var(--card-light);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    margin: 12px 0 32px;
+}
+.quote-mark {
+    font: 900 64px/1 var(--font-display);
+    color: var(--accent);
+    margin-bottom: 8px;
+}
+.quote-text {
+    font: 500 30px/1.65 var(--font-heading);
+    color: var(--primary);
+    font-style: italic;
+}
+
+/* ── Prompt Card 指令卡片 ── */
+.prompt-card {
+    padding: 32px 40px;
+    border: 1px solid var(--border);
+    border-left: 3px solid var(--accent);
+    border-radius: 4px;
+    background: var(--card-light);
+    margin: 12px 0 32px;
+}
+.prompt-card .prompt-label {
+    font: 500 18px/1 var(--font-mono);
+    color: var(--accent);
+    text-transform: uppercase;
+    letter-spacing: .14em;
+    margin-bottom: 14px;
+}
+.prompt-card .prompt-text {
+    font: 400 28px/1.65 var(--font-body);
+    color: var(--primary);
+}
+
+/* ── Equation Row 等式對比 ── */
+.eq-row {
+    display: flex; align-items: center; justify-content: center; gap: 24px;
+    margin: 24px 0 48px;
+}
+.eq-box {
+    padding: 24px 40px;
+    border-radius: 8px;
+    background: var(--card-light);
+    border: 1px solid var(--border);
+    color: var(--primary);
+    text-align: center;
+    font: 600 34px/1.3 var(--font-body);
+}
+.eq-box span {
+    display: block;
+    font: 400 22px/1.4 var(--font-mono);
+    color: var(--accent);
+    margin-top: 4px;
+}
+.eq-sign {
+    font: 300 44px/1 var(--font-body);
+    color: var(--muted);
+}
+
+/* ── Feature Grid 重點方格 ── */
+.feature-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 20px;
+}
+.feature-item {
+    padding: 32px 32px 28px;
+    background: var(--card-light);
+    border: 1px solid var(--border);
+    border-left: 3px solid var(--accent);
+    border-radius: 4px;
+}
+.feature-icon {
+    width: 64px; height: 64px;
+    margin: 0 0 16px;
+    background: var(--accent);
+    border-radius: 4px;
+}
+.feature-label {
+    margin-bottom: 10px;
+    color: var(--primary);
+    font: 600 32px/1.2 var(--font-body);
+}
+.feature-detail {
+    color: var(--secondary);
+    font: 400 24px/1.5 var(--font-body);
+}
+
+/* ── Terminal 終端機視窗 ── */
+.terminal {
+    border-radius: 6px;
+    overflow: hidden;
+    margin: 12px 0 32px;
+    border: 1px solid var(--border);
+}
+.terminal-bar {
+    display: flex; align-items: center; gap: 8px;
+    padding: 14px 20px;
+    background: var(--card-dark);
+    border-bottom: 1px solid var(--border);
+}
+.terminal-dot { width: 12px; height: 12px; border-radius: 50%; }
+.terminal-dot.r { background: #ff5f57; }
+.terminal-dot.y { background: #febc2e; }
+.terminal-dot.g { background: #28c840; }
+
+.terminal-body {
+    padding: 28px 32px;
+    background: var(--card-light);
+    font: 400 24px/1.75 var(--font-mono);
+    color: var(--primary);
+}
+.terminal-body .prompt { color: var(--accent); font-weight: 600; }
+.terminal-body .dim    { color: var(--muted); }
+
+/* ── Task Demo 任務展示 ── */
+.task-demo {
+    border-radius: 6px;
+    overflow: hidden;
+    margin: 12px 0 32px;
+    border: 1px solid var(--border);
+}
+.task-command {
+    padding: 28px 32px;
+    background: var(--card-dark);
+    color: var(--primary);
+    font: 500 28px/1.55 var(--font-mono);
+    border-bottom: 1px solid var(--border);
+}
+.task-command .task-label,
+.task-result .task-label {
+    font: 500 18px/1 var(--font-mono);
+    text-transform: uppercase;
+    letter-spacing: .14em;
+    margin-bottom: 12px;
+}
+.task-command .task-label { color: var(--accent); }
+.task-result  .task-label { color: var(--green); }
+
+.task-result {
+    padding: 28px 32px;
+    background: var(--card-light);
+    color: var(--primary);
+    font: 400 28px/1.55 var(--font-body);
+}
+
+/* ── Illustration 插圖 ── */
+.illust {
+    display: flex; justify-content: center;
+    margin: 24px 0 32px;
+}
+.illust img {
+    max-width: 100%;
+    max-height: 560px;
+    object-fit: contain;
+}
+
+.illust-row {
+    display: flex; align-items: center; gap: 40px;
+    margin: 24px 0 32px;
+}
+.illust-row img {
+    width: 40%; max-height: 480px; object-fit: contain; flex-shrink: 0;
+}
+.illust-row .illust-text { flex: 1; }
+
+/* ── Diagram 流程圖原子零件 ──
+   把「節點 → 節點 → active 節點」的流程感做出來。 */
+.diagram {
+    display: flex; flex-direction: column;
+    align-items: center;
+    gap: 0;
+    margin: 24px 0 32px;
+    width: 100%;
+}
+.diagram-row {
+    display: flex; justify-content: center;
+    gap: 16px;
+    width: 100%;
+}
+.diagram-node {
+    flex: 1;
+    padding: 24px 22px;
+    border-radius: 6px;
+    text-align: center;
+    background: var(--card-light);
+    border: 1px solid var(--border);
+    color: var(--primary);
+}
+.diagram-node.wide { flex: none; width: 100%; }
+.diagram-node.light {
+    background: var(--card-light);
+    border-color: var(--border);
+    color: var(--primary);
+}
+.diagram-node.muted {
+    background: var(--card-dark);
+    color: var(--secondary);
+}
+/* 最後一個 node = 流程終點 = 琥珀高亮 */
+.diagram-row > .diagram-node:last-child:not(.light):not(.muted) {
+    background: linear-gradient(135deg, rgba(245,166,35,.16), rgba(245,166,35,.04));
+    border-color: var(--accent);
+}
+.diagram-node .node-t {
+    font: 700 30px/1.25 var(--font-body);
+    color: var(--primary);
+}
+.diagram-node .node-d {
+    font: 400 22px/1.4 var(--font-body);
+    color: var(--secondary);
+    margin-top: 6px;
+}
+.diagram-arrow {
+    display: flex; justify-content: center;
+    padding: 10px 0;
+    font: 300 32px/1 var(--font-body);
+    color: var(--muted);
+}
+
+/* ── Cycle Loop 循環圖 ── */
+.cycle {
+    display: grid;
+    grid-template-columns: 1fr auto 1fr;
+    align-items: center; justify-items: center;
+    gap: 12px;
+    margin: 24px 0 32px;
+    width: 100%;
+}
+.cycle-node {
+    width: 100%;
+    padding: 32px 24px;
+    border-radius: 6px;
+    background: var(--card-light);
+    border: 1px solid var(--border);
+    color: var(--primary);
+    text-align: center;
+    font: 700 30px/1.3 var(--font-body);
+}
+.cycle-node .cycle-d {
+    font: 400 22px/1.4 var(--font-body);
+    color: var(--secondary);
+    margin-top: 4px;
+}
+.cycle-node.green { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+.cycle-node.green .cycle-d { color: var(--accent-ink); opacity: .75; }
+.cycle-arrow {
+    font: 300 36px/1 var(--font-body);
+    color: var(--muted);
+    padding: 0 12px;
+}

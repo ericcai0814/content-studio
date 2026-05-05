@@ -1,0 +1,468 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OpenSpace Round 1-2 — Part 1 共同場</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700&family=Noto+Sans+TC:wght@300;400;500;700&family=Noto+Serif+TC:wght@400;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="../../base.css">
+    <link rel="stylesheet" href="../../../themes/default.css">
+    <style>
+        :root {
+            --w: 1920px;
+            --h: 1080px;
+            --pad: 120px;
+        }
+        .inner { padding: 100px var(--pad) 90px; }
+        .cover-title { font-size: 96px; line-height: 1.1; }
+        .cover-sub { font-size: 32px; letter-spacing: .15em; text-transform: uppercase; color: var(--muted); }
+        .cover-desc { font-size: 30px; color: var(--secondary); margin-top: 24px; }
+        .page-title { font-size: 64px; line-height: 1.2; }
+        .page-sub { font-size: 28px; color: var(--muted); letter-spacing: .08em; text-transform: uppercase; margin-bottom: 20px; }
+        .body { font-size: 32px; }
+        .small { font-size: 24px; }
+        .callout { font-size: 34px; padding: 40px 44px; }
+        .deco { width: 80px; height: 6px; margin: 28px 0; }
+
+        /* Time axis */
+        .timeaxis {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 32px;
+            margin-top: 40px;
+        }
+        .time-block {
+            background: var(--card-light);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            padding: 36px 32px;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+        .time-block.accent { background: var(--card-dark); color: #fff; border-color: transparent; }
+        .time-slot { font-family: var(--font-display); font-size: 28px; letter-spacing: .08em; opacity: .7; }
+        .time-label { font-size: 40px; font-weight: 700; font-family: var(--font-heading); }
+        .time-desc { font-size: 24px; line-height: 1.55; opacity: .9; }
+
+        /* Big quote for pivot question */
+        .pivot-quote {
+            font-family: var(--font-heading);
+            font-size: 56px;
+            line-height: 1.35;
+            font-weight: 700;
+            padding: 60px 80px;
+            border-left: 8px solid var(--primary);
+            background: var(--card-light);
+            border-radius: 8px;
+            margin: 40px 0;
+        }
+        .pivot-quote .q-mark {
+            font-family: var(--font-display);
+            font-size: 140px;
+            color: var(--primary);
+            line-height: 0.5;
+            display: block;
+            margin-bottom: 20px;
+        }
+        .pivot-quote .q-note {
+            display: block;
+            font-size: 24px;
+            font-weight: 400;
+            color: var(--muted);
+            margin-top: 32px;
+            letter-spacing: .05em;
+        }
+
+        /* Badge for round number */
+        .round-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 16px;
+            padding: 14px 28px;
+            border-radius: 100px;
+            background: var(--card-dark);
+            color: #fff;
+            font-family: var(--font-display);
+            font-size: 22px;
+            letter-spacing: .15em;
+            text-transform: uppercase;
+            margin-bottom: 32px;
+        }
+        .round-badge .dot { width: 10px; height: 10px; border-radius: 50%; background: var(--primary); }
+
+        /* Transition page */
+        .transition-wrap {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100%;
+            text-align: center;
+            gap: 32px;
+        }
+        .transition-arrow {
+            font-family: var(--font-display);
+            font-size: 180px;
+            color: var(--primary);
+            line-height: 1;
+        }
+        .transition-from, .transition-to {
+            font-size: 32px;
+            color: var(--muted);
+        }
+        .transition-to { color: var(--primary); font-weight: 700; }
+
+        /* Closing recap */
+        .recap-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 40px;
+            margin-top: 40px;
+        }
+        .recap-card {
+            background: var(--card-light);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            padding: 40px 36px;
+        }
+        .recap-card .r-round { font-family: var(--font-display); font-size: 22px; letter-spacing: .15em; text-transform: uppercase; color: var(--muted); margin-bottom: 16px; }
+        .recap-card .r-title { font-size: 34px; font-weight: 700; font-family: var(--font-heading); line-height: 1.3; margin-bottom: 20px; }
+        .recap-card .r-next { font-size: 24px; color: var(--secondary); line-height: 1.55; }
+
+        /* Vote candidates */
+        .vote-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 24px;
+            margin-top: 36px;
+        }
+        .vote-grid .vote-card:first-child { grid-column: 1 / -1; }
+        .vote-card {
+            background: var(--card-light);
+            border: 2px solid var(--border);
+            border-radius: 16px;
+            padding: 28px 32px;
+            display: flex;
+            gap: 24px;
+            align-items: center;
+            transition: all .2s;
+        }
+        .vote-card .v-num {
+            font-family: var(--font-display);
+            font-size: 44px;
+            font-weight: 700;
+            color: var(--muted);
+            min-width: 60px;
+        }
+        .vote-card .v-body { flex: 1; }
+        .vote-card .v-title {
+            font-size: 30px;
+            font-weight: 700;
+            font-family: var(--font-heading);
+            line-height: 1.3;
+            margin-bottom: 8px;
+        }
+        .vote-card .v-tags {
+            display: flex;
+            gap: 12px;
+            font-size: 20px;
+            color: var(--muted);
+        }
+        .vote-card .v-tag {
+            padding: 4px 12px;
+            border-radius: 100px;
+            background: var(--bg);
+            border: 1px solid var(--border);
+            letter-spacing: .05em;
+        }
+        .vote-instruction {
+            margin-top: 36px;
+            padding: 24px 32px;
+            background: var(--card-dark);
+            color: #fff;
+            border-radius: 12px;
+            font-size: 26px;
+            text-align: center;
+            letter-spacing: .03em;
+        }
+
+        /* Cover extras */
+        .cover-meta {
+            display: flex;
+            gap: 40px;
+            margin-top: 48px;
+            font-size: 26px;
+            color: var(--muted);
+            letter-spacing: .05em;
+        }
+        .cover-meta span strong { color: var(--primary); font-weight: 700; margin-right: 8px; }
+    </style>
+</head>
+<body>
+
+<!-- S1: 封面 -->
+<div class="page">
+    <div class="inner" style="justify-content:center;">
+        <p class="cover-sub">Part 1 · 共同場 · OpenSpace</p>
+        <h1 class="cover-title">AI Claude Code<br>工程師交流</h1>
+        <div class="deco"></div>
+        <p class="cover-desc">Round 1 × Round 2 × Round 3　三題 45 分鐘　peer-to-peer</p>
+        <div class="cover-meta" style="flex-wrap:wrap; gap:24px 40px;">
+            <span><strong>Round 1</strong>AI 說改好但沒改好</span>
+            <span><strong>Round 2</strong>Context 爆炸怎麼察覺處理</span>
+            <span><strong>Round 3</strong>現場投票選題</span>
+        </div>
+    </div>
+</div>
+
+<!-- S2: Round 1 標題 -->
+<div class="page">
+    <div class="inner" style="justify-content:center;">
+        <div class="round-badge"><span class="dot"></span>Round 1 · 15 min</div>
+        <h1 class="cover-title">AI 說改好了<br>但其實沒改好</h1>
+        <div class="deco"></div>
+        <p class="cover-desc">不是它寫錯的那種 — 是它信誓旦旦說修好了，你信了，結果沒有。</p>
+    </div>
+</div>
+
+<!-- S3: Round 1 時間軸 -->
+<div class="page">
+    <div class="inner">
+        <p class="page-sub">Round 1 · 時間軸</p>
+        <h2 class="page-title">15 分鐘，三段節奏</h2>
+        <div class="timeaxis">
+            <div class="time-block">
+                <div class="time-slot">00:00 – 00:02</div>
+                <div class="time-label">開場</div>
+                <div class="time-desc">情境重現：最近一次被 AI「騙」到是什麼時候？</div>
+            </div>
+            <div class="time-block accent">
+                <div class="time-slot">00:02 – 00:12</div>
+                <div class="time-label">主體交流</div>
+                <div class="time-desc">peer-to-peer 互拋經驗，主持人不插嘴</div>
+            </div>
+            <div class="time-block">
+                <div class="time-slot">00:12 – 00:15</div>
+                <div class="time-label">收斂</div>
+                <div class="time-desc">整理共通點，銜接下一題</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- S4: Round 1 收斂問 -->
+<div class="page">
+    <div class="inner" style="justify-content:center;">
+        <p class="page-sub">Round 1 · 收斂</p>
+        <div class="pivot-quote">
+            <span class="q-mark">"</span>
+            你們怎麼判斷 AI 是「真的改好」還是「說它改好」？<br>
+            有沒有哪一關一定要跑？
+            <span class="q-note">— 定義完成（Definition of Done）</span>
+        </div>
+    </div>
+</div>
+
+<!-- S5: 過場 -->
+<div class="page">
+    <div class="inner">
+        <div class="transition-wrap">
+            <p class="transition-from">Round 1 — 輸出驗證</p>
+            <div class="transition-arrow">↓</div>
+            <p class="transition-to">Round 2 — 輸入管理</p>
+            <p class="small" style="color:var(--muted); max-width:800px; margin-top:24px;">
+                同一個問題的兩面：一個談「怎麼驗證它做對了」，<br>一個談「怎麼讓它看到對的東西」。
+            </p>
+        </div>
+    </div>
+</div>
+
+<!-- S6: Round 2 標題 -->
+<div class="page">
+    <div class="inner" style="justify-content:center;">
+        <div class="round-badge"><span class="dot"></span>Round 2 · 15 min</div>
+        <h1 class="cover-title">Context 爆炸<br>怎麼察覺處理</h1>
+        <div class="deco"></div>
+        <p class="cover-desc">聊著聊著，它開始重複問前面講過的，或給出不相干的答案 — 那就是前兆。</p>
+    </div>
+</div>
+
+<!-- S7: Round 2 時間軸 -->
+<div class="page">
+    <div class="inner">
+        <p class="page-sub">Round 2 · 時間軸</p>
+        <h2 class="page-title">15 分鐘，三段節奏</h2>
+        <div class="timeaxis">
+            <div class="time-block">
+                <div class="time-slot">00:00 – 00:02</div>
+                <div class="time-label">開場</div>
+                <div class="time-desc">症狀喚起：AI 開始失憶、開始打結的那一刻</div>
+            </div>
+            <div class="time-block accent">
+                <div class="time-slot">00:02 – 00:12</div>
+                <div class="time-label">主體交流</div>
+                <div class="time-desc">察覺 / 處理 / 預防　三面向自由討論</div>
+            </div>
+            <div class="time-block">
+                <div class="time-slot">00:12 – 00:15</div>
+                <div class="time-label">收斂</div>
+                <div class="time-desc">重新看 context 管理的本質</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- S8: Round 2 收斂問 -->
+<div class="page">
+    <div class="inner" style="justify-content:center;">
+        <p class="page-sub">Round 2 · 收斂</p>
+        <div class="pivot-quote">
+            <span class="q-mark">"</span>
+            Context 管理不是「避免爆炸」 —<br>
+            是「決定什麼該進 context、什麼不該」。
+            <span class="q-note">— 這其實跟我們管訊息一樣</span>
+        </div>
+    </div>
+</div>
+
+<!-- S9: 過場 R2 → R3 -->
+<div class="page">
+    <div class="inner">
+        <div class="transition-wrap">
+            <p class="transition-from">Round 1 + Round 2 — 鎖定題</p>
+            <div class="transition-arrow">↓</div>
+            <p class="transition-to">Round 3 — 交給現場</p>
+            <p class="small" style="color:var(--muted); max-width:800px; margin-top:24px;">
+                前兩題我們替你們選了 — 確保不冷場。<br>第三題，你們自己選。
+            </p>
+        </div>
+    </div>
+</div>
+
+<!-- S10: Round 3 標題 -->
+<div class="page">
+    <div class="inner" style="justify-content:center;">
+        <div class="round-badge"><span class="dot"></span>Round 3 · 15 min</div>
+        <h1 class="cover-title">現場投票<br>選一題</h1>
+        <div class="deco"></div>
+        <p class="cover-desc">5 題候選裡，你們今天最想聊哪一題？</p>
+    </div>
+</div>
+
+<!-- S11: Round 3 投票頁 -->
+<div class="page">
+    <div class="inner">
+        <p class="page-sub">Round 3 · 候選池</p>
+        <h2 class="page-title">選你今天最想聊的一題</h2>
+        <div class="vote-grid">
+            <div class="vote-card">
+                <div class="v-num">01</div>
+                <div class="v-body">
+                    <div class="v-title">跟 AI pair 一整天會累嗎</div>
+                    <div class="v-tags"><span class="v-tag">🔥 零門檻暖場</span></div>
+                </div>
+            </div>
+            <div class="vote-card">
+                <div class="v-num">02</div>
+                <div class="v-body">
+                    <div class="v-title">什麼丟 AI / 什麼自己寫</div>
+                    <div class="v-tags"><span class="v-tag">⚡ 易分歧</span><span class="v-tag">🎯 呼應主題</span></div>
+                </div>
+            </div>
+            <div class="vote-card">
+                <div class="v-num">03</div>
+                <div class="v-body">
+                    <div class="v-title">AI code review 不 rubber stamp</div>
+                    <div class="v-tags"><span class="v-tag">⚡ 易分歧</span><span class="v-tag">🎯 呼應主題</span></div>
+                </div>
+            </div>
+            <div class="vote-card">
+                <div class="v-num">04</div>
+                <div class="v-body">
+                    <div class="v-title">AI 意見不同聽誰</div>
+                    <div class="v-tags"><span class="v-tag">⚡ 易分歧</span></div>
+                </div>
+            </div>
+            <div class="vote-card">
+                <div class="v-num">05</div>
+                <div class="v-body">
+                    <div class="v-title">哪些核心能力貶值 / 升值</div>
+                    <div class="v-tags"><span class="v-tag">⚡ 易分歧</span></div>
+                </div>
+            </div>
+        </div>
+        <div class="vote-instruction">每人一票　·　舉手或便利貼　·　最高票開聊</div>
+    </div>
+</div>
+
+<!-- S12: Round 3 時間軸 -->
+<div class="page">
+    <div class="inner">
+        <p class="page-sub">Round 3 · 時間軸</p>
+        <h2 class="page-title">15 分鐘，三段節奏</h2>
+        <div class="timeaxis">
+            <div class="time-block">
+                <div class="time-slot">00:00 – 00:02</div>
+                <div class="time-label">投票 + 開場</div>
+                <div class="time-desc">選出題目，主持人簡介題意</div>
+            </div>
+            <div class="time-block accent">
+                <div class="time-slot">00:02 – 00:12</div>
+                <div class="time-label">主體交流</div>
+                <div class="time-desc">順著你們選的題自由展開</div>
+            </div>
+            <div class="time-block">
+                <div class="time-slot">00:12 – 00:15</div>
+                <div class="time-label">收斂</div>
+                <div class="time-desc">整理三輪共通浮現的東西</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- S13: Round 3 收斂 / 通用 -->
+<div class="page">
+    <div class="inner" style="justify-content:center;">
+        <p class="page-sub">Round 3 · 收斂</p>
+        <div class="pivot-quote">
+            <span class="q-mark">"</span>
+            三題聊下來 —<br>
+            你最意外的是什麼？最想帶回去試的又是什麼？
+            <span class="q-note">— 收斂整場，留下可帶走的東西</span>
+        </div>
+    </div>
+</div>
+
+<!-- S14: 收束 / 銜接 Part 2 -->
+<div class="page">
+    <div class="inner">
+        <p class="page-sub">Part 1 → Part 2</p>
+        <h2 class="page-title">你們提到的，Part 2 會展開</h2>
+        <div class="recap-grid" style="grid-template-columns: repeat(3, 1fr); gap: 28px;">
+            <div class="recap-card" style="padding: 32px 28px;">
+                <div class="r-round">Round 1 收集</div>
+                <div class="r-title" style="font-size:28px;">輸出面的驗證缺口</div>
+                <div class="r-next" style="font-size:22px;">→ 三大挑戰「幻覺」與「verification」段</div>
+            </div>
+            <div class="recap-card" style="padding: 32px 28px;">
+                <div class="r-round">Round 2 收集</div>
+                <div class="r-title" style="font-size:28px;">輸入面的 context 漏水</div>
+                <div class="r-next" style="font-size:22px;">→ Completion 定義 / Subagent 架構 / just-in-time retrieval</div>
+            </div>
+            <div class="recap-card" style="padding: 32px 28px;">
+                <div class="r-round">Round 3 收集</div>
+                <div class="r-title" style="font-size:28px;">你們選的那題</div>
+                <div class="r-next" style="font-size:22px;">→ 依現場選題回扣對應框架段</div>
+            </div>
+        </div>
+        <p class="body" style="margin-top:48px; text-align:center; color:var(--muted);">
+            Part 1 結束 — Part 2 見。
+        </p>
+    </div>
+</div>
+
+</body>
+</html>

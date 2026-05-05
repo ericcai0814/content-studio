@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Flow Sprint — 為什麼這樣設計</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@300;400;500;700&family=Noto+Serif+TC:wght@400;500;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="../../base.css">
+    <link rel="stylesheet" href="../../../themes/claude.css">
+</head>
+<body>
+
+<!-- P1: Cover -->
+<div class="page">
+    <div class="inner" style="justify-content:center;">
+        <p class="cover-sub" contenteditable="true">給參與者的設計說明</p>
+        <h1 class="cover-title" contenteditable="true">為什麼<br>這樣設計</h1>
+        <div class="deco"></div>
+        <p class="cover-desc" contenteditable="true">AI Flow Sprint<br>每條規則背後的思考</p>
+    </div>
+</div>
+
+<!-- P2: 核心信念 -->
+<div class="page">
+    <div class="inner">
+        <h2 class="page-title" contenteditable="true">與其先認同<br>不如先做一次</h2>
+        <p class="body" contenteditable="true">我們不打算用投影片說服你 AI 有多強。</p>
+        <p class="body" contenteditable="true">我們想讓你自己跑一次 AI 輔助開發流程，體驗它在哪裡有用、在哪裡卡住、在哪裡需要人的判斷。</p>
+        <div class="callout mt-auto" contenteditable="true">
+            <strong>跑過一次之後，你才有可能對 AI 開發流程建立具體理解。</strong>
+        </div>
+    </div>
+</div>
+
+<!-- P3: 混編分組 -->
+<div class="page">
+    <div class="inner">
+        <h2 class="page-title" contenteditable="true">混編分組<br>打散舒適圈</h2>
+        <div class="steps">
+            <div class="step">
+                <div class="step-num">01</div>
+                <div>
+                    <div class="step-t">3 人一組，最多 2 位工程師</div>
+                    <div class="step-d">強制跨職能，不能只在自己熟悉的領域裡轉。</div>
+                </div>
+            </div>
+            <div class="step">
+                <div class="step-num">02</div>
+                <div>
+                    <div class="step-t">打散原有團隊</div>
+                    <div class="step-d">跟不同人合作，才能看到不同的思考方式和 AI 使用策略。</div>
+                </div>
+            </div>
+            <div class="step">
+                <div class="step-num">03</div>
+                <div>
+                    <div class="step-t">還原真實場景</div>
+                    <div class="step-d">實際專案就是跨角色協作。不會只有工程師。</div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- P4: 需求刻意留白 -->
+<div class="page">
+    <div class="inner">
+        <h2 class="page-title" contenteditable="true">需求刻意留白</h2>
+        <p class="body" contenteditable="true">任務只說「做一個回報系統原型」。我們故意不給完整規格。</p>
+        <div class="compare">
+            <div class="compare-col">
+                <div class="compare-head bad">我們不想看到</div>
+                <div class="compare-row">照著規格逐步執行</div>
+                <div class="compare-row">只問「這樣對不對」</div>
+                <div class="compare-row">AI 說什麼就做什麼</div>
+            </div>
+            <div class="compare-col">
+                <div class="compare-head good">我們想看到</div>
+                <div class="compare-row">自己定義系統邊界</div>
+                <div class="compare-row">主動釐清模糊地帶</div>
+                <div class="compare-row">對 AI 產出做取捨判斷</div>
+            </div>
+        </div>
+        <div class="callout mt-auto" contenteditable="true">
+            需求不完整時，你怎麼透過討論和 AI 來釐清問題？
+        </div>
+    </div>
+</div>
+
+<!-- P5: Spec Before Code -->
+<div class="page">
+    <div class="inner" style="justify-content:center;">
+        <h2 class="page-title" contenteditable="true">Spec Before Code</h2>
+        <p class="body" contenteditable="true">唯一的強制規則：開始寫 code 之前，必須先交出一份需求文件。</p>
+        <div class="highlight-card">
+            <div class="h-text">不限格式，哪怕很簡陋。但至少要說明：</div>
+            <div class="h-sub">這個系統要解決什麼問題？目標是什麼？做什麼、不做什麼？核心流程是什麼？</div>
+        </div>
+        <p class="body" contenteditable="true" style="margin-top:32px;">先定義問題，再讓 AI 幫你解決。順序不能反過來。</p>
+    </div>
+</div>
+
+<!-- P6: 我們真正在看的 -->
+<div class="page">
+    <div class="inner">
+        <h2 class="page-title" contenteditable="true">我們真正<br>在看的</h2>
+        <p class="body" contenteditable="true">不是你做出多完整的產品。是過程中的五件事：</p>
+        <div class="feature-grid" style="grid-template-columns:1fr;">
+            <div class="feature-item" style="border-radius:12px;">
+                <div class="feature-label">怎麼定義需求邊界</div>
+                <div class="feature-detail">面對模糊需求，你們畫了什麼線</div>
+            </div>
+            <div class="feature-item" style="border-radius:12px;">
+                <div class="feature-label">怎麼分工給人與 AI</div>
+                <div class="feature-detail">哪些交給 AI，哪些保留人來判斷</div>
+            </div>
+            <div class="feature-item" style="border-radius:12px;">
+                <div class="feature-label">怎麼驗證 AI 的產出</div>
+                <div class="feature-detail">不是看它對不對，是看你怎麼確認它對不對</div>
+            </div>
+            <div class="feature-item" style="border-radius:12px;">
+                <div class="feature-label">卡住時怎麼修正</div>
+                <div class="feature-detail">遇到問題的決策過程，比結果更重要</div>
+            </div>
+            <div class="feature-item" style="border-radius:12px;">
+                <div class="feature-label">能不能整理成方法</div>
+                <div class="feature-detail">做完之後，你的經驗可以被別人複用嗎</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- P7: CTA -->
+<div class="page">
+    <div class="inner" style="justify-content:center;">
+        <h2 class="page-title" contenteditable="true">做完這次<br>你會知道</h2>
+        <div class="deco"></div>
+        <p class="body" contenteditable="true">AI 導入的不只是寫 code 的效率，而是從需求到上線的整條流程都會改變。</p>
+        <div class="callout" contenteditable="true">
+            <strong>這場 Sprint 的價值，不在於 2.5 天做出什麼，而在於你對 AI 開發流程的理解從此不同。</strong>
+        </div>
+        <p class="small mt-auto" style="text-align:center;margin-top:auto;" contenteditable="true">AI Flow Sprint — ewill</p>
+    </div>
+</div>
+
+</body>
+</html>

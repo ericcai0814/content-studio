@@ -1,0 +1,16 @@
+# macOS
+.DS_Store
+
+# Editor / tooling
+.playwright-mcp/
+node_modules/
+*.local.md
+
+# Content exports（截圖匯出，體積大且可重新生成）
+**/output/
+pk-cowork/exports/
+pk-cowork/exports-original/
+pk-cowork/exports-warmdark/
+
+# Logs
+*.log

@@ -1,0 +1,144 @@
+/* landing-page 類型的共用骨架。
+ * 與 carousel/base.css 不同：不綁定固定尺寸，採 responsive max-width。
+ * 必須與 themes/<name>.css 一起 link，由 theme 提供 design tokens。
+ */
+
+*, *::before, *::after { box-sizing: border-box; }
+
+html {
+  scroll-behavior: smooth;
+  scroll-padding-top: 72px; /* 預留 sticky nav 高度 */
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--primary);
+  font-family: var(--font-body);
+  font-size: 16px;
+  line-height: 1.7;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+main {
+  max-width: 880px;
+  margin: 0 auto;
+  padding: 0 24px;
+}
+
+h1, h2, h3, h4 {
+  font-family: var(--font-heading);
+  color: var(--primary);
+  letter-spacing: -0.01em;
+  margin: 0 0 0.6em;
+}
+
+h1 { font-size: 2.4rem; line-height: 1.2; font-weight: 600; }
+h2 { font-size: 1.6rem; line-height: 1.3; font-weight: 600; }
+h3 { font-size: 1.15rem; line-height: 1.4; font-weight: 600; }
+
+p { margin: 0 0 1em; }
+
+a {
+  color: var(--terracotta, var(--primary));
+  text-decoration: none;
+  border-bottom: 1px solid transparent;
+  transition: border-color 120ms ease;
+}
+a:hover { border-bottom-color: currentColor; }
+
+code, pre {
+  font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  font-size: 0.9em;
+}
+
+code {
+  background: var(--border-cream, var(--border));
+  padding: 0.1em 0.35em;
+  border-radius: 3px;
+}
+
+table {
+  border-collapse: collapse;
+  width: 100%;
+  margin: 1em 0;
+  font-size: 0.92rem;
+}
+
+th, td {
+  text-align: left;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--border);
+  vertical-align: top;
+}
+
+th {
+  font-weight: 600;
+  color: var(--secondary);
+  font-size: 0.85rem;
+  letter-spacing: 0.02em;
+}
+
+details {
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--card-light);
+  margin: 8px 0;
+  overflow: hidden;
+}
+
+details > summary {
+  padding: 14px 18px;
+  cursor: pointer;
+  font-weight: 500;
+  list-style: none;
+  user-select: none;
+  position: relative;
+  padding-right: 40px;
+}
+
+details > summary::-webkit-details-marker { display: none; }
+
+details > summary::after {
+  content: "+";
+  position: absolute;
+  right: 18px;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 1.1rem;
+  color: var(--muted);
+  transition: transform 200ms ease;
+}
+
+details[open] > summary::after { content: "−"; }
+
+details > *:not(summary) {
+  padding: 0 18px 14px;
+}
+
+section {
+  padding: 56px 0;
+  border-bottom: 1px solid var(--border);
+}
+
+section:last-of-type { border-bottom: none; }
+
+button {
+  font-family: inherit;
+  font-size: inherit;
+  cursor: pointer;
+}
+
+input, textarea, select {
+  font-family: inherit;
+  font-size: inherit;
+  color: inherit;
+}
+
+@media (max-width: 640px) {
+  h1 { font-size: 1.9rem; }
+  h2 { font-size: 1.4rem; }
+  main { padding: 0 18px; }
+  section { padding: 40px 0; }
+}

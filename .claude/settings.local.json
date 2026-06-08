@@ -75,7 +75,9 @@
       "Bash(agent-browser scroll *)",
       "Bash(agent-browser snapshot *)",
       "Bash(agent-browser click *)",
-      "Bash(gh repo *)"
+      "Bash(gh repo *)",
+      "Bash(mgrep *)",
+      "Bash(claude --version)"
     ]
   }
 }

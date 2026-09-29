@@ -10,19 +10,19 @@ All commands from `app/` (run `bun install` once).
 - Stills (look at the PNGs): `bun scripts/render.ts stills --t 12.5,33 [--only copies] --out ../out/wip`
 - Contact sheets, one per plate cut, with a blank-frame report: `bun scripts/render.ts sheet --cuts` → `../out/sheets/cut-NN-a-b.png`
 - Reproducibility: `bun scripts/render.ts hash --t 12.5,60 --samples 4` renders each time twice (with a seek between) and compares SHA-256 of the pixels.
-- Draft video: `bun scripts/render.ts video --samples 4 --out ../out/m1-draft.mp4`; final: `--samples auto` (adaptive motion blur). `--audio ../audio/sfx.wav` muxes a sound track (M2).
+- Sound: `../audio/sfx.sh` synthesises `../out/sfx.wav` from the cues. Video: `bun scripts/render.ts video --samples 4 --audio ../out/sfx.wav --out ../out/m2.mp4`; final: `--samples auto` (adaptive motion blur).
 - Every mode prints `SCENE ERRORS`, browser errors and `LAYOUT WARNINGS` (text outside title-safe or below 30 px).
 - `render.ts` starts its own Vite server without live reload. `--url http://localhost:5190` reuses a running one; it must serve this app (5173 is often another project's).
 - Typecheck: `bun run typecheck`.
 
-Checks (from `proposal-film/`): `bun scripts/check-facts.ts` (every text and number traceable to dept-brain.md) and `bun scripts/check-readability.ts` (dwell ≥ units/5 + 1, exits before cuts, cuts on downbeats, sfx on beats).
+Checks (from `proposal-film/`): `bun scripts/check-facts.ts` (every text and number traceable to dept-brain.md), `bun scripts/check-readability.ts` (dwell ≥ units/5 + 1, exits before cuts, cuts on downbeats, sfx on beats) and `bun scripts/check-sfx.ts out/m2.mp4` (each sound's measured onset within 30 ms of its cue).
 
 ## Data: `data/cues.json`
 
 - `bpm`, `offset`, `beatsPerBar`: the virtual beat grid (96 BPM; no music, but cuts and effects land on it).
 - `plates[]`: `{id, start, end, paper?, title}`. The timeline is built from this list; `id` is also the scene module name (`app/src/scenes/<id>.ts`). `paper: true` gives a bone ground.
 - `texts[]`: `{id, plate, role, text, start, end, source?}`. `text` is exactly what is drawn. It is readable from `start` (its entrance begins) to `end` (its exit begins). `role` picks the type style. `source` lists verbatim excerpts of dept-brain.md when `text` is condensed rather than quoted.
-- `sfx[]`: `{t, kind, plate, note}`: sound-effect cue points on the beat grid (synthesised from M2).
+- `sfx[]`: `{t, kind, plate, note}`: sound-effect cue points on the beat grid, synthesised by `audio/sfx.sh` (one recipe per `kind`).
 
 Scenes read text only through `this.cue(id)`; they never hard-code display strings (the fact check fails on CJK literals in scene files).
 
@@ -45,20 +45,20 @@ export default class MyPlate extends Plate {
 }
 ```
 
-`Plate.render` clears to bone or ink, calls `draw`, then composites in order: the Canvas2D `layer`, `ink` lines (normal blend) and `glow` lines (additive HDR, the only thing that blooms).
+`Plate.render` clears to bone or ink, calls `draw`, then composites in order: `under()` (optional GL: shader grounds, 3D wireframes; `halfway` raymarches its engraved stack there), the Canvas2D `layer`, `ink` lines (normal blend) and `glow` lines (additive HDR, the only thing that blooms).
 
 Rules:
 
 - **Deterministic**: a pure function of `f.t`. No `Math.random()`, `Date.now()`, `performance.now()`; use `hash()` / `mulberry32()` from `engine/util.ts`. The export averages sub-frames in any order.
 - **One motion language**: `inn(t, t0, dur)` (outExpo entrances), `move(t, t0, t1)` (inOutCubic moves), `cueVis` / `drawCue` (text in and out). Linear only for slow drift and counters. No loops, no particles.
-- **Text** goes through `drawCue(c, cue, t, x, baselineY, opts)`: role styles in `STYLE`, `align`, `size`, `clipX` (reveal left of x), `rot`, `text` (e.g. `rollNumber()` counters). It checks title-safe (96 px) and the 30 px minimum.
-- **The thread**: `threadLine(batch, pts, len, width, rgb)` draws the first `len` px of a polyline and returns the head; `threadHead` (on ink, glowing) / `threadHeadInk` (on paper). Colours are linear; `sig(k)` is the signal teal times `k` (k > ~1.2 blooms on ink).
+- **Text** goes through `drawCue(c, cue, t, x, baselineY, opts)`: role styles in `STYLE`, `align`, `size`, `clipX` (reveal left of x), `reveal` (glyphs written in as x passes them), `rot`, `text` (e.g. `rollNumber()` counters). It checks title-safe (96 px) and the 30 px minimum.
+- **The thread**: `threadLine(batch, pts, len, width, rgb)` draws the first `len` px of a polyline (at `THREAD_WEIGHT` × `width`, for phone viewing) and returns the head; `threadHead` (on ink, glowing) / `threadHeadInk` (on paper). Colours are linear; `sig(k)` is the signal teal times `k` (k > ~1.2 blooms on ink).
 - Every plate shows something from its first frame (the cut must not land on a blank ground); texts finish exiting before the cut.
 
 ## Toolbox (from pdoom)
 
 - `gl.ts`: `FSPass` fullscreen GLSL pass, `Compositor` (`ctx.comp.draw(renderer, tex, target, {mode, opacity})`), `Layer2D` (1920×1080 Canvas2D → sRGB texture), `makeRT`, `clearRT`, `SCALE` (`?scale=2` for 4K).
-- `glsl/common.ts`: palette constants (`C_INK`, `C_BONE`, `C_SIGNAL`, `C_AMBER` …), hashes, simplex noise, SDFs, `hatch` / `engrave` (for the engraved plates in M2).
+- `glsl/common.ts`: palette constants (`C_INK`, `C_BONE`, `C_SIGNAL`, `C_REDLINE` …), hashes, simplex noise, SDFs, `hatch` / `engrave` (the engraved stack in `halfway`).
 - `lines.ts`: `LineBatch` GPU capsule segments, 2D pixels or 3D with a camera.
 - `post.ts`: bloom (threshold 1.0 linear), signal-tinted halation, chromatic aberration, tone shoulder, grain, vignette, `fade`, `flash`, `zoom`, `shake`.
 - `util.ts`: `clamp, lerp, prog, keys, ease.*, hash, noise*, polylineLengths, pointAtLength`.
@@ -71,7 +71,7 @@ Unchanged from pdoom: `--samples N` averages N sub-frames over `--shutter` × fr
 ## What changed from pdoom-video
 
 - `audio.ts`, `lyrics.ts`, `stroke.ts` and the analysis pipeline removed; `cues.ts` reads `data/cues.json` (plates, texts, beat grid, sfx points).
-- `palette.ts` / `glsl/common.ts`: this film's palette (signal = ewill teal, amber, redline); `heat()` removed.
+- `palette.ts` / `glsl/common.ts`: this film's palette (signal = ewill teal, the only accent; redline); `heat()` removed.
 - `post.ts`: bloom threshold 1.0 with a narrow knee (only HDR teal glows), halation tinted teal, P(doom) fields removed.
 - `hud.ts`: crop marks only (off by default).
 - `type.ts`: Noto Sans TC (variable) + IBM Plex Mono, no opentype.js outlines.

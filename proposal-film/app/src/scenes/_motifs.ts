@@ -36,6 +36,12 @@ function warn(key: string, msg: string) {
   layoutWarnings.push(msg);
 }
 
+/** Report a box (layout px) that leaves title-safe. */
+export function guardBox(id: string, box: { x: number; y: number; w: number; h: number }) {
+  if (box.x < SAFE - 0.5 || box.x + box.w > W - SAFE + 0.5 || box.y < SAFE - 0.5 || box.y + box.h > H - SAFE + 0.5)
+    warn(`${id}:safe`, `${id}: box ${box.x.toFixed(0)},${box.y.toFixed(0)} ${box.w.toFixed(0)}x${box.h.toFixed(0)} leaves title-safe (${SAFE}px)`);
+}
+
 // ------------------------------------------------------------------ type styles
 export interface TextStyle { f: FontSpec; size: number; tracking?: number }
 export const STYLE: Record<string, TextStyle> = {
@@ -62,6 +68,10 @@ export interface DrawTextOpts {
   reveal?: { x: number; feather: number };
   /** Rotation in radians about the anchor (stamps). */
   rot?: number;
+  /** Drawn inside a transform the caller set up (a stamp's press): skip the title-safe check, which the caller does for the whole object with guardBox(). */
+  local?: boolean;
+  /** Part of an object with its own entrance (a stamp): no rise or fade in, the text is simply there from `start`. */
+  still?: boolean;
   /** Extra alpha multiplier. */
   alpha?: number;
 }
@@ -80,11 +90,11 @@ export function drawCue(c: CanvasRenderingContext2D, cue: TextCue, t: number, x:
   const x0 = align === 'left' ? x : align === 'center' ? x - w / 2 : x - w;
   const box = { x: x0, y: y - size * 0.9, w, h: size * 1.15 };
   if (size < MIN_PX) warn(`${cue.id}:size`, `${cue.id}: ${size}px < ${MIN_PX}px minimum`);
-  if (!o.rot && (box.x < SAFE - 0.5 || box.x + box.w > W - SAFE + 0.5 || box.y < SAFE - 0.5 || box.y + box.h > H - SAFE + 0.5))
-    warn(`${cue.id}:safe`, `${cue.id}: box ${box.x.toFixed(0)},${box.y.toFixed(0)} ${box.w.toFixed(0)}x${box.h.toFixed(0)} leaves title-safe (${SAFE}px)`);
-  const a = cueVis(t, cue) * (o.alpha ?? 1);
+  if (!o.rot && !o.local) guardBox(cue.id, box);
+  const vis = o.still ? (t >= cue.start ? 1 - prog(t, cue.end, cue.end + EXIT, ease.inOutCubic) : 0) : cueVis(t, cue);
+  const a = vis * (o.alpha ?? 1);
   if (a <= 0.002) return box;
-  const dy = (1 - inn(t, cue.start)) * 18;
+  const dy = o.still ? 0 : (1 - inn(t, cue.start)) * 18;
   c.save();
   c.globalAlpha = a;
   if (o.clipX !== undefined) { c.beginPath(); c.rect(0, 0, o.clipX, H); c.clip(); }

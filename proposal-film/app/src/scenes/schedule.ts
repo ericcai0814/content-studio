@@ -1,10 +1,10 @@
 // Plate 6 · schedule (1:15–1:30). Bone paper roadmap. The point travels the W0–W8 route and stamps
-// the four dates as it passes; the travelled route turns teal. Two side notes: no budget, no headcount,
-// ~16 h a week; stop unless more than half the criteria pass.
+// the four dates as it passes (the same press as the copies plate); the travelled route turns teal.
+// Two side notes: no budget, no headcount, ~16 h a week; stop unless more than half the criteria pass.
 import type { Frame } from '../engine/scene';
 import { rgba } from '../engine/palette';
-import { lerp } from '../engine/util';
-import { Plate, drawCue, inn, move, threadHeadInk, sig, STYLE } from './_motifs';
+import { clamp, ease, lerp, prog } from '../engine/util';
+import { Plate, drawCue, guardBox, inn, move, threadHeadInk, sig, STYLE, EXIT } from './_motifs';
 import { measure } from '../engine/type';
 
 const RX0 = 200, RX1 = 1720, RY = 450;
@@ -43,29 +43,40 @@ export default class Schedule extends Plate {
     this.ink.seg2(RX0, RY, hx, RY, 4, sig(1));
     threadHeadInk(this.ink, hx, RY, inn(t, 75.625));
 
-    // stamps: pressed in (outExpo scale) as the point arrives, tied to the route by a short lead
+    // stamps, in the copies plate's language: pressed down on the beat (drops from 107%, outExpo),
+    // one impression ring; the type is part of the stamp, so it scales and turns with the frame
     STAMPS.forEach((s, i) => {
       const cue = cues[i]!;
-      const k = inn(t, cue.start, 0.5);
-      if (k <= 0) return;
+      if (t < cue.start) return;
       const st = STYLE.stamp!;
       const tw = measure(cue.text, st.f, st.size), pad = 20;
-      const x = wx(s.w), bh = st.size + pad * 2;
+      const x = wx(s.w), bw = tw + pad * 2, bh = st.size + pad * 2;
       const cy = RY + s.side * (s.side < 0 ? 130 : 190);
-      const bx = s.align === 'center' ? x - tw / 2 - pad : x - tw - pad * 2;
-      const sc = lerp(1.12, 1, k);
-      const a = Math.min(1, k * 2) * (1 - inn(t, cue.end, 0.45));
+      const cx = s.align === 'center' ? x : x - bw / 2;
+      const rot = -0.03 + 0.012 * i;
+      const press = inn(t, cue.start, 0.35);
+      const a = clamp((t - cue.start) / 0.08) * (1 - prog(t, cue.end, cue.end + EXIT, ease.inOutCubic));
+      guardBox(cue.id, { x: cx - bw / 2, y: cy - bh / 2, w: bw, h: bh });
       c.save();
       c.globalAlpha = a;
-      c.translate(bx + (tw + pad * 2) / 2, cy);
-      c.rotate(-0.03 + 0.012 * i);
-      c.scale(sc, sc);
+      c.translate(cx, cy);
+      c.rotate(rot);
+      c.scale(1 + 0.07 * (1 - press), 1 + 0.07 * (1 - press));
       c.strokeStyle = rgba('signal', 1); c.lineWidth = 3;
-      c.strokeRect(-(tw + pad * 2) / 2, -bh / 2, tw + pad * 2, bh);
+      c.strokeRect(-bw / 2, -bh / 2, bw, bh);
+      drawCue(c, cue, t, 0, st.size * 0.36, { color: rgba('signal', 1), align: 'center', local: true, still: true });
       c.restore();
+      const ring = prog(t, cue.start, cue.start + 0.45);
+      if (ring > 0 && ring < 1) {
+        const g = lerp(0, 16, ease.outExpo(ring));
+        c.save();
+        c.translate(cx, cy); c.rotate(rot);
+        c.strokeStyle = rgba('signal', 0.35 * (1 - ring)); c.lineWidth = 2;
+        c.strokeRect(-bw / 2 - g, -bh / 2 - g, bw + 2 * g, bh + 2 * g);
+        c.restore();
+      }
       // (a lead below the route starts under the week labels)
       this.ink.seg2(x, RY + (s.side < 0 ? -14 : 76), x, cy - s.side * bh / 2, 2, sig(1), a);
-      drawCue(c, cue, t, bx + pad + tw / 2, cy + st.size * 0.36, { color: rgba('signal', 1), align: 'center', rot: -0.03 + 0.012 * i });
     });
 
     drawCue(c, this.cue('schedule.n1'), t, 160, 850, { color: this.fg });

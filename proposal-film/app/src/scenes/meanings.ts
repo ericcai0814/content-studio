@@ -105,5 +105,7 @@ export default class Meanings extends Plate {
 
     drawCue(c, this.cue('meanings.main'), t, TX0, 830, { color: this.fg });
     drawCue(c, this.cue('meanings.main2'), t, TX0, 915, { color: this.fg });
+    // no chromatic aberration: the drawing frame runs close to the edges, where CA fringes it magenta
+    return { ca: 0 };
   }
 }

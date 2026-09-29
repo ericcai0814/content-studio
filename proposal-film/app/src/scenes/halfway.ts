@@ -1,7 +1,8 @@
 // Plate 4 · halfway (0:37.5–0:52.5). Engraved 3D. The six-part skeleton as a stack of six slabs in
-// perspective. Five projects' copies start apart as grey wireframes and slide into exact register
-// (additive lines: where they coincide they read brighter); on the hash match the wires turn teal and
-// the registered stack appears as a solid, shaded like an engraving (raymarched, `engrave()` hatch).
+// perspective. Five projects' copies arrive one per half beat as grey wireframes, apart, and slide
+// into exact register (additive lines: where they coincide they read brighter); on the hash match the
+// wires turn teal and the registered stack appears as a solid, shaded like an engraving (raymarched,
+// `engrave()` hatch).
 // The camera drifts once across the plate (eased, no loop). TSMC's numbers in the right column.
 import * as THREE from 'three';
 import type { Frame } from '../engine/scene';
@@ -97,7 +98,11 @@ export default class Halfway extends Plate {
       const off = new THREE.Vector3((hash(p, 1) - 0.5) * 3.2, (hash(p, 2) - 0.5) * 1.4, (hash(p, 4) - 0.5) * 3.2).multiplyScalar(1 - k);
       const spin = (hash(p, 3) - 0.5) * 0.6 * (1 - k);
       const cs = Math.cos(spin), sn = Math.sin(spin);
-      const rgb: [number, number, number] = [0, 1, 2].map((j) => lerp(LIN.ash[j]! * 0.22, LIN.signal[j]! * 0.75, lit)) as [number, number, number];
+      // copies arrive one after another (the first is there from the cut), so the opening frames are
+      // not a tangle of thirty boxes
+      const enter = p === 0 ? 1 : inn(t, 37.5 + p * 0.3125, 0.6);
+      if (enter <= 0) continue;
+      const rgb: [number, number, number] = [0, 1, 2].map((j) => lerp(LIN.ash[j]! * 0.22, LIN.signal[j]! * 0.75, lit) * enter) as [number, number, number];
       for (let i = 0; i < ROWS; i++) {
         const c = CENTER[i]!, h = HALF[i]!;
         const v = (sx: number, sy: number, sz: number) => {

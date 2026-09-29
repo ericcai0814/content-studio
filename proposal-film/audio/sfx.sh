@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # Synthesise the film's sound-effect track from data/cues.json (sfx[]). No samples, no music: every
 # kind is one ffmpeg lavfi recipe (deterministic: fixed noise seeds), each event is placed at its cue
-# time, and the mix is loudness-normalised to about -16 LUFS with a -2 dBTP ceiling.
+# time, and the mix is loudness-normalised to -16 LUFS with a -2 dBTP ceiling (two-pass loudnorm:
+# measure the dry mix, then apply one linear gain from that measurement).
 #
 #   audio/sfx.sh [out.wav]        default: out/sfx.wav (out/ is not in git)
 #   then: cd app && bun scripts/render.ts video --audio ../out/sfx.wav ...
@@ -41,6 +42,13 @@ while IFS=$'\t' read -r t kind; do
   i=$((i + 1))
 done < <(jq -r '.sfx[] | [.t, .kind] | @tsv' "$cues")
 
-filters+="${labels}amix=inputs=$i:normalize=0:dropout_transition=0,apad,atrim=0:$dur,loudnorm=I=-16:TP=-2:LRA=11,aresample=$SR[out]"
-ffmpeg -y -loglevel error "${inputs[@]}" -filter_complex "$filters" -map "[out]" -ar $SR -ac 2 -c:a pcm_s16le "$out"
-echo "wrote $out ($i events, ${dur}s)"
+filters+="${labels}amix=inputs=$i:normalize=0:dropout_transition=0,apad,atrim=0:$dur[out]"
+dry="$work/dry.wav"
+ffmpeg -y -loglevel error "${inputs[@]}" -filter_complex "$filters" -map "[out]" -ar $SR -ac 2 -c:a pcm_f32le "$dry"
+
+# pass 1: measure; pass 2: normalise with the measured values (linear: one gain, transients intact)
+LN="I=-16:TP=-2:LRA=11"
+m=$(ffmpeg -hide_banner -nostats -i "$dry" -af "loudnorm=$LN:print_format=json" -f null - 2>&1 | sed -n '/^{/,/^}/p')
+val() { jq -r ".$1" <<<"$m"; }
+ffmpeg -y -loglevel error -i "$dry" -af "loudnorm=$LN:measured_I=$(val input_i):measured_TP=$(val input_tp):measured_LRA=$(val input_lra):measured_thresh=$(val input_thresh):offset=$(val target_offset):linear=true,aresample=$SR" -ar $SR -ac 2 -c:a pcm_s16le "$out"
+echo "wrote $out ($i events, ${dur}s; dry mix measured $(val input_i) LUFS)"

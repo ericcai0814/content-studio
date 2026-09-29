@@ -7,7 +7,8 @@
 //    a second, plus a second to find the line). units = CJK characters + Latin/number tokens
 //    ("Project", "AI", "7,416", "4.5", "1:1" count one each); punctuation and spaces count zero.
 //    The text is readable from `start` to `end`.
-// 2. Every text lives inside its plate, and its exit (EXIT s after `end`) finishes before the cut.
+// 2. Every text lives inside its plate, and either its exit (EXIT s after `end`) finishes before the
+//    cut, or `end` is the cut itself (the text leaves with the hard cut, no fade).
 // 3. Plates tile the film without gaps, every cut sits on a downbeat of the virtual grid, and every
 //    sound-effect cue sits on a beat.
 import { readFileSync } from 'node:fs';
@@ -36,7 +37,7 @@ for (const c of d.texts) {
   rows.push(`${ok ? 'ok ' : 'BAD'}  ${c.id.padEnd(16)} ${dwell.toFixed(2).padStart(6)}s >= ${need.toFixed(2).padStart(5)}s  (${String(u).padStart(2)})  ${c.text}`);
   const p = d.plates.find((x) => x.id === c.plate);
   if (!p) errs.push(`TIMING ${c.id}: unknown plate ${c.plate}`);
-  else if (c.start < p.start - EPS || c.end + EXIT > p.end + EPS)
+  else if (c.start < p.start - EPS || (c.end + EXIT > p.end + EPS && Math.abs(c.end - p.end) > EPS))
     errs.push(`TIMING ${c.id}: ${c.start}–${c.end}(+${EXIT}) outside plate ${p.id} ${p.start}–${p.end}`);
 }
 

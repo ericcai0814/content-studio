@@ -54,8 +54,9 @@ export default class Schedule extends Plate {
       const cy = RY + s.side * (s.side < 0 ? 130 : 190);
       const bx = s.align === 'center' ? x - tw / 2 - pad : x - tw - pad * 2;
       const sc = lerp(1.12, 1, k);
+      const a = Math.min(1, k * 2) * (1 - inn(t, cue.end, 0.45));
       c.save();
-      c.globalAlpha = Math.min(1, k * 2) * (1 - inn(t, cue.end, 0.45));
+      c.globalAlpha = a;
       c.translate(bx + (tw + pad * 2) / 2, cy);
       c.rotate(-0.03 + 0.012 * i);
       c.scale(sc, sc);
@@ -63,7 +64,7 @@ export default class Schedule extends Plate {
       c.strokeRect(-(tw + pad * 2) / 2, -bh / 2, tw + pad * 2, bh);
       c.restore();
       // (a lead below the route starts under the week labels)
-      this.ink.seg2(x, RY + (s.side < 0 ? -14 : 76), x, cy - s.side * bh / 2, 2, sig(1), Math.min(1, k * 2));
+      this.ink.seg2(x, RY + (s.side < 0 ? -14 : 76), x, cy - s.side * bh / 2, 2, sig(1), a);
       drawCue(c, cue, t, bx + pad + tw / 2, cy + st.size * 0.36, { color: rgba('signal', 1), align: 'center', rot: -0.03 + 0.012 * i });
     });
 

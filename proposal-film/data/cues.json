@@ -14,8 +14,8 @@
     { "id": "ask", "start": 100, "end": 112.5, "paper": true, "title": "表單：請你決定的三件事" }
   ],
   "texts": [
-    { "id": "open.title", "plate": "open", "role": "display", "text": "從 Project AI 到 Department AI", "start": 1.875, "end": 9.375 },
-    { "id": "open.label", "plate": "open", "role": "label", "text": "部門共享大腦提案｜軟體部", "start": 3.75, "end": 9.375,
+    { "id": "open.title", "plate": "open", "role": "display", "text": "從 Project AI 到 Department AI", "start": 1.875, "end": 10 },
+    { "id": "open.label", "plate": "open", "role": "label", "text": "部門共享大腦提案｜軟體部", "start": 3.75, "end": 10,
       "source": ["部門共享大腦（dept-brain）的提案", "軟體部和公司 AI 平台"] },
 
     { "id": "copies.doc", "plate": "copies", "role": "label", "text": "測試案例撰寫規範", "start": 10.625, "end": 24.375 },

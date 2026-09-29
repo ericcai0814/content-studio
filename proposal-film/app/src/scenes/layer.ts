@@ -13,7 +13,7 @@ export default class Layer extends Plate {
     const t = f.t;
     const label = this.cue('layer.label');
     const lift = move(t, 91.25, 92.5);
-    // bottom to top, so upper slabs overlap lower ones
+    // bottom to top, so upper slabs overlap lower ones; all on screen from the cut, settling in
     for (let i = 0; i < 5; i++) {
       const up = inn(t, 90 + i * 0.125, 0.6);
       const isK = i === KNOW;
@@ -21,7 +21,6 @@ export default class Layer extends Plate {
       const y = BASE_Y - i * GAP - (isK ? lift * 10 : 0) + (1 - up) * 30;
       const top = [{ x, y: y - HH }, { x: x + HW, y }, { x, y: y + HH }, { x: x - HW, y }];
       c.save();
-      c.globalAlpha = Math.max(0.35, up);
       // side faces (thickness), then the top face
       c.fillStyle = rgba('ink2', 1);
       c.beginPath();

@@ -1,7 +1,7 @@
-// Plate 3 · meanings (0:25–0:37.5). Blueprint: a drafting sheet (border, minor and major grid,
-// registration crosses, a dimension line). A traceability-table header; its status column is
-// hatched and lit, and the thread drops out of it and splits into four leads, one per project's
-// meaning, each ending in a bracketed callout.
+// Plate 3 · meanings (0:25–0:37.5). Blueprint: a drafting sheet (minor and major grid only; no
+// registration crosses, frame or empty dimension line, which were decoration). A traceability-table
+// header; its status column is hatched and lit, and the thread drops out of it and splits into four
+// leads, one per project's meaning, each ending in a bracketed callout.
 import type { Frame } from '../engine/scene';
 import { rgba } from '../engine/palette';
 import { W, H } from '../engine/gl';
@@ -13,7 +13,7 @@ const NODES = [310, 700, 1090, 1480];
 const SPLIT_Y = 380, NODE_Y = 470;
 
 export default class Meanings extends Plate {
-  /** The drafting sheet, on screen from the cut: minor/major grid, border, registration crosses. */
+  /** The drafting sheet, on screen from the cut: minor/major grid. */
   private sheet(c: CanvasRenderingContext2D) {
     c.fillStyle = rgba('graphite', 0.09);
     for (let x = 0; x < W; x += 30) c.fillRect(x, 0, 1, H);
@@ -21,13 +21,6 @@ export default class Meanings extends Plate {
     c.fillStyle = rgba('graphite', 0.22);
     for (let x = 0; x < W; x += 150) c.fillRect(x, 0, 1, H);
     for (let y = 0; y < H; y += 150) c.fillRect(0, y, W, 1);
-    c.strokeStyle = rgba('ash', 0.35); c.lineWidth = 1.5;
-    c.strokeRect(60, 60, W - 120, H - 120);
-    c.strokeRect(68, 68, W - 136, H - 136);
-    c.fillStyle = rgba('ash', 0.45);
-    for (let x = 450; x < W; x += 300) for (let y = 150; y < H; y += 300) {
-      c.fillRect(x - 8, y - 0.75, 16, 1.5); c.fillRect(x - 0.75, y - 8, 1.5, 16);
-    }
   }
 
   /** Section hatching in the lit column (45°, clipped to the cell). */
@@ -40,18 +33,6 @@ export default class Meanings extends Plate {
     for (let x = x0 - (TY1 - TY0); x < x1; x += 12) { c.moveTo(x, TY1); c.lineTo(x + (TY1 - TY0), TY0); }
     c.stroke();
     c.restore();
-  }
-
-  /** A dimension line over the column: extension lines, arrow ticks, drawn out from the middle. */
-  private dimension(c: CanvasRenderingContext2D, x0: number, x1: number, k: number) {
-    if (k <= 0) return;
-    const y = TY0 - 22, mx = (x0 + x1) / 2, half = ((x1 - x0) / 2) * k;
-    c.strokeStyle = rgba('ash', 0.7 * k); c.lineWidth = 1.5;
-    c.beginPath();
-    c.moveTo(x0, TY0 - 6); c.lineTo(x0, y - 10); c.moveTo(x1, TY0 - 6); c.lineTo(x1, y - 10);
-    c.moveTo(mx - half, y); c.lineTo(mx + half, y);
-    for (const [x, d] of [[mx - half, 1], [mx + half, -1]] as const) { c.moveTo(x + d * 9, y - 5); c.lineTo(x, y); c.lineTo(x + d * 9, y + 5); }
-    c.stroke();
   }
 
   /** Corner brackets framing a callout of size w x h centred on (x, top y). */
@@ -81,7 +62,6 @@ export default class Meanings extends Plate {
     const lit = inn(t, col.start);
     const cx0 = TX0 + COL * cw, cx1 = cx0 + cw;
     this.hatchCell(c, cx0, cx1, lit);
-    this.dimension(c, cx0, cx1, lit);
     const box = [{ x: cx0, y: TY0 }, { x: cx1, y: TY0 }, { x: cx1, y: TY1 }, { x: cx0, y: TY1 }, { x: cx0, y: TY0 }];
     threadLine(this.glow, box, lit * 2 * (cw + TY1 - TY0), 2, sig(2));
     drawCue(c, this.cue('meanings.table'), t, TX0, TY0 - 30, { color: this.dim });
@@ -105,7 +85,7 @@ export default class Meanings extends Plate {
 
     drawCue(c, this.cue('meanings.main'), t, TX0, 830, { color: this.fg });
     drawCue(c, this.cue('meanings.main2'), t, TX0, 915, { color: this.fg });
-    // no chromatic aberration: the drawing frame runs close to the edges, where CA fringes it magenta
+    // no chromatic aberration: the grid runs to the edges, where CA fringes it magenta
     return { ca: 0 };
   }
 }

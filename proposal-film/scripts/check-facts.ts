@@ -21,8 +21,8 @@ const argv = process.argv.slice(2);
 const opt = (k: string) => { const i = argv.indexOf(`--${k}`); return i >= 0 ? argv[i + 1] : undefined; };
 const DOC = opt('doc') ?? process.env.DEPT_BRAIN ?? path.join(process.env.HOME ?? '', 'obsidian-brain/workspace/20-contexts/software-department/dept-brain.md');
 
-/** Drop whitespace, Markdown marks and punctuation (full- and half-width) so layout and emphasis do not matter. */
-const norm = (s: string) => s.replace(/[\s*`|#>，。、「」『』（）()：:；;！!？?“”"'‘’—–\-/…｜·,.\[\]→＝=]/g, '');
+/** Drop whitespace, Markdown marks and punctuation (full- and half-width), and ignore Latin case, so layout, emphasis and a set-in-caps label do not matter. */
+const norm = (s: string) => s.toLowerCase().replace(/[\s*`|#>，。、「」『』（）()：:；;！!？?“”"'‘’—–\-/…｜·,.\[\]→＝=]/g, '');
 /** Numbers as written (7,416 -> 7416; 4.5 stays 4.5; 1:1 -> 1, 1). */
 const numbers = (s: string) => (s.match(/\d+(?:[.,]\d+)*/g) ?? []).map((n) => n.replace(/,/g, ''));
 const CN = ['零', '一', '二', '三', '四', '五', '六', '七', '八', '九', '十'];

@@ -10,7 +10,7 @@
     { "id": "halfway", "start": 37.5, "end": 52.5, "title": "線框：5 個專案的骨架重合" },
     { "id": "converge", "start": 52.5, "end": 75, "title": "平板收攏成 dept-brain" },
     { "id": "schedule", "start": 75, "end": 90, "paper": true, "title": "路線圖：W0 到 W8" },
-    { "id": "layer", "start": 90, "end": 100, "title": "ACROSS 堆疊：知識層" },
+    { "id": "dogfood", "start": 90, "end": 100, "title": "黑場線稿：先用在自己身上" },
     { "id": "outro", "start": 100, "end": 105, "title": "黑場：線收回成光點" }
   ],
   "texts": [
@@ -88,9 +88,13 @@
     { "id": "schedule.n2", "plate": "schedule", "role": "body", "text": "驗收過半才進下一階段，沒過就停", "start": 85.625, "end": 89.5,
       "source": ["**過半（≥4 條）** 進 Phase 2 評估", "**沒過半**就停止 Phase 1"] },
 
-    { "id": "layer.label", "plate": "layer", "role": "note", "text": "ACROSS 03 資料與知識層", "start": 91.875, "end": 99.5 },
-    { "id": "layer.main", "plate": "layer", "role": "headline", "text": "這是公司 AI 平台的知識層。", "start": 94.375, "end": 99.5,
-      "source": ["**在公司 AI 平台的位置**：ACROSS 03 資料與知識層"] },
+    { "id": "dogfood.core", "plate": "dogfood", "role": "label", "text": "dept-brain", "start": 90.625, "end": 99.5 },
+    { "id": "dogfood.t1", "plate": "dogfood", "role": "headline", "text": "先用在自己身上。", "start": 91.25, "end": 99.5,
+      "source": ["**定位：Dogfooding**：先用在軟體部自己身上，真正解決我們自己的痛點，驗證過才能產品化"] },
+    { "id": "dogfood.tag", "plate": "dogfood", "role": "label", "text": "DOGFOODING", "start": 91.875, "end": 99.5 },
+    { "id": "dogfood.t2", "plate": "dogfood", "role": "headline", "text": "真正解決軟體部自己的痛點。", "start": 93.75, "end": 99.5,
+      "source": ["**定位：Dogfooding**：先用在軟體部自己身上，真正解決我們自己的痛點，驗證過才能產品化"] },
+    { "id": "dogfood.t3", "plate": "dogfood", "role": "headline", "text": "驗證過，才能產品化。", "start": 96.25, "end": 99.5 },
 
     { "id": "outro.label", "plate": "outro", "role": "label", "text": "部門共享大腦｜軟體部", "start": 101.25, "end": 105,
       "source": ["部門共享大腦（dept-brain）的提案", "軟體部和公司 AI 平台"] }
@@ -124,8 +128,10 @@
     { "t": 79.375, "kind": "stamp", "plate": "schedule", "note": "10 月底規則庫上線" },
     { "t": 81.25, "kind": "stamp", "plate": "schedule", "note": "11 月中導入" },
     { "t": 83.125, "kind": "stamp", "plate": "schedule", "note": "11 月底驗收" },
-    { "t": 90, "kind": "whoosh", "plate": "layer", "note": "切到堆疊" },
-    { "t": 91.25, "kind": "rise", "plate": "layer", "note": "03 層抬升" },
+    { "t": 90, "kind": "whoosh", "plate": "dogfood", "note": "切到線稿" },
+    { "t": 91.25, "kind": "rise", "plate": "dogfood", "note": "青綠線從核心繞回軟體部自己" },
+    { "t": 93.75, "kind": "tick", "plate": "dogfood", "note": "5 個專案節點重新亮起" },
+    { "t": 96.25, "kind": "ding", "plate": "dogfood", "note": "遠處的產品輪廓亮起" },
     { "t": 100, "kind": "soft", "plate": "outro", "note": "柔和收尾音：線收回成光點" }
   ]
 }

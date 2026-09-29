@@ -13,12 +13,13 @@ const SW = 210, SH = 110, CW = 300, CH = 150;
 const MERGE0 = 55.625, MERGE1 = 57.5;
 
 export default class Converge extends Plate {
+  /** A rule slab: sharp corners, like every other shape in the film (one corner system: none). */
   private slab(c: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, a: number, edge: string) {
     c.save();
     c.globalAlpha = a;
     c.fillStyle = rgba('ink2', 0.85);
     c.strokeStyle = edge; c.lineWidth = 1.5;
-    c.beginPath(); c.roundRect(x - w / 2, y - h / 2, w, h, 10); c.fill(); c.stroke();
+    c.beginPath(); c.rect(x - w / 2, y - h / 2, w, h); c.fill(); c.stroke();
     c.restore();
   }
 

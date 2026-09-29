@@ -44,7 +44,8 @@ export default class Schedule extends Plate {
     threadHeadInk(this.ink, hx, RY, inn(t, 75.625));
 
     // stamps, in the copies plate's language: pressed down on the beat (drops from 107%, outExpo),
-    // one impression ring; the type is part of the stamp, so it scales and turns with the frame
+    // one impression ring; the type is part of the stamp, so it scales and turns with the frame.
+    // The frame is teal; the type is ink, since teal type on bone is only 2.9:1 contrast.
     STAMPS.forEach((s, i) => {
       const cue = cues[i]!;
       if (t < cue.start) return;
@@ -64,7 +65,7 @@ export default class Schedule extends Plate {
       c.scale(1 + 0.07 * (1 - press), 1 + 0.07 * (1 - press));
       c.strokeStyle = rgba('signal', 1); c.lineWidth = 3;
       c.strokeRect(-bw / 2, -bh / 2, bw, bh);
-      drawCue(c, cue, t, 0, st.size * 0.36, { color: rgba('signal', 1), align: 'center', local: true, still: true });
+      drawCue(c, cue, t, 0, st.size * 0.36, { color: this.fg, align: 'center', local: true, still: true });
       c.restore();
       const ring = prog(t, cue.start, cue.start + 0.45);
       if (ring > 0 && ring < 1) {

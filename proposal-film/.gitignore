@@ -1,0 +1,4 @@
+node_modules/
+.vite/
+# renders (drafts, contact sheets, stills): regenerable and large
+out/

@@ -58,6 +58,8 @@ export interface DrawTextOpts {
   text?: string;
   /** Reveal only left of this x (the thread writing the text). */
   clipX?: number;
+  /** Written by the thread: each glyph fades and settles in as `x` passes it, over `feather` px (left-aligned text only). */
+  reveal?: { x: number; feather: number };
   /** Rotation in radians about the anchor (stamps). */
   rot?: number;
   /** Extra alpha multiplier. */
@@ -93,7 +95,17 @@ export function drawCue(c: CanvasRenderingContext2D, cue: TextCue, t: number, x:
   c.textAlign = align;
   c.textBaseline = 'alphabetic';
   c.fillStyle = o.color;
-  c.fillText(text, 0, 0);
+  if (o.reveal && align === 'left') {
+    let prefix = '';
+    for (const ch of Array.from(text)) {
+      const gx = c.measureText(prefix).width; // (includes ctx.letterSpacing)
+      prefix += ch;
+      const k = clamp((o.reveal.x - (x + gx)) / o.reveal.feather);
+      if (k <= 0) break;
+      c.globalAlpha = a * ease.outExpo(k);
+      c.fillText(ch, gx, (1 - ease.outExpo(k)) * 10);
+    }
+  } else c.fillText(text, 0, 0);
   c.restore();
   return box;
 }
@@ -114,8 +126,15 @@ export const sig = (k: number): RGB => [LIN.signal[0] * k, LIN.signal[1] * k, LI
 /** Length of a polyline in px. */
 export function pathLen(pts: V2[]) { const L = polylineLengths(pts); return L[L.length - 1] ?? 0; }
 
+/**
+ * Thread weight: every thread and lead is drawn this many times the width a plate asks for, so the
+ * motif still reads when the film is watched full-width on a phone held upright (about 1/5 scale).
+ */
+export const THREAD_WEIGHT = 2;
+
 /** Draw the first `len` px of a polyline and return the point there (the head) with the full length. */
 export function threadLine(lb: LineBatch, pts: V2[], len: number, width: number, rgb: RGB, alpha = 1) {
+  width *= THREAD_WEIGHT;
   const L = polylineLengths(pts);
   const total = L[L.length - 1] ?? 0;
   const s = clamp(len, 0, total);
@@ -132,16 +151,16 @@ export function threadLine(lb: LineBatch, pts: V2[], len: number, width: number,
 /** The point of light at the head of the thread, on ink (additive batch, blooms). */
 export function threadHead(lb: LineBatch, x: number, y: number, k = 1) {
   if (k <= 0.001) return;
-  lb.seg2(x, y, x + 0.01, y, 30, sig(0.45 * k), 0.45);
-  lb.seg2(x, y, x + 0.01, y, 11, sig(3.2 * k), 0.9);
-  lb.seg2(x, y, x + 0.01, y, 4, [1.6 * k, 3.0 * k, 3.0 * k], 1);
+  lb.seg2(x, y, x + 0.01, y, 44, sig(0.45 * k), 0.45);
+  lb.seg2(x, y, x + 0.01, y, 17, sig(3.2 * k), 0.9);
+  lb.seg2(x, y, x + 0.01, y, 6, [1.6 * k, 3.0 * k, 3.0 * k], 1);
 }
 
 /** The head on bone paper (normal batch): a solid teal dot with a pale ring, no glow. */
 export function threadHeadInk(lb: LineBatch, x: number, y: number, k = 1) {
   if (k <= 0.001) return;
-  lb.seg2(x, y, x + 0.01, y, 22, LIN.signal, 0.18 * k);
-  lb.seg2(x, y, x + 0.01, y, 10, LIN.signal, k);
+  lb.seg2(x, y, x + 0.01, y, 32, LIN.signal, 0.18 * k);
+  lb.seg2(x, y, x + 0.01, y, 15, LIN.signal, k);
 }
 
 /** Sample a cubic Bezier into a polyline. */
@@ -159,7 +178,7 @@ export function bezier(p0: V2, p1: V2, p2: V2, p3: V2, n = 48): V2[] {
 
 // ------------------------------------------------------------------ plate base
 /**
- * A plate: clears to bone (paper) or ink, then draws, in order: the Canvas2D `layer`, `ink` lines
+ * A plate: clears to bone (paper) or ink, then draws, in order: `under()` (optional GL), the Canvas2D `layer`, `ink` lines
  * (normal blend) and `glow` lines (additive HDR, the only bloom). Lines sit over the drawing.
  */
 export abstract class Plate extends Scene {
@@ -174,6 +193,8 @@ export abstract class Plate extends Scene {
   get dim() { return this.paper ? rgba('graphite', 1) : rgba('ash', 1); }
 
   abstract draw(f: Frame, c: CanvasRenderingContext2D): PostOverrides | void;
+  /** GL drawing under the 2D layer (shader grounds, 3D wireframes), after the ground is cleared. */
+  under(_f: Frame, _out: THREE.WebGLRenderTarget): void {}
 
   render(f: Frame, out: THREE.WebGLRenderTarget) {
     const { renderer, comp } = this.ctx;
@@ -182,6 +203,7 @@ export abstract class Plate extends Scene {
     this.glow.clear();
     this.ink.clear();
     const ov = this.draw(f, this.layer.ctx);
+    this.under(f, out);
     comp.draw(renderer, this.layer.upload(), out);
     this.ink.render(renderer, out);
     this.glow.render(renderer, out);

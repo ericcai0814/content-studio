@@ -2,7 +2,7 @@
   "bpm": 96,
   "offset": 0,
   "beatsPerBar": 4,
-  "duration": 112.5,
+  "duration": 105,
   "plates": [
     { "id": "open", "start": 0, "end": 10, "title": "黑場、單一光線" },
     { "id": "copies", "start": 10, "end": 25, "paper": true, "title": "公文紙：同一份規範被複製 5 次" },
@@ -11,7 +11,7 @@
     { "id": "converge", "start": 52.5, "end": 75, "title": "平板收攏成 dept-brain" },
     { "id": "schedule", "start": 75, "end": 90, "paper": true, "title": "路線圖：W0 到 W8" },
     { "id": "layer", "start": 90, "end": 100, "title": "ACROSS 堆疊：知識層" },
-    { "id": "ask", "start": 100, "end": 112.5, "paper": true, "title": "表單：請你決定的三件事" }
+    { "id": "outro", "start": 100, "end": 105, "title": "黑場：線收回成光點" }
   ],
   "texts": [
     { "id": "open.title", "plate": "open", "role": "display", "text": "從 Project AI 到 Department AI", "start": 1.875, "end": 10 },
@@ -92,13 +92,8 @@
     { "id": "layer.main", "plate": "layer", "role": "headline", "text": "這是公司 AI 平台的知識層。", "start": 94.375, "end": 99.5,
       "source": ["**在公司 AI 平台的位置**：ACROSS 03 資料與知識層"] },
 
-    { "id": "ask.title", "plate": "ask", "role": "headline", "text": "PoC 後請 Johnson 決定的三件事", "start": 100.625, "end": 111.25 },
-    { "id": "ask.c1", "plate": "ask", "role": "body", "text": "建立部門共享大腦", "start": 102.5, "end": 111.25 },
-    { "id": "ask.c2", "plate": "ask", "role": "body", "text": "認可部門唯一版本的規則", "start": 104.375, "end": 111.25 },
-    { "id": "ask.c3", "plate": "ask", "role": "body", "text": "指定 TII 與 TOPS 試行並要求結案寫回", "start": 106.25, "end": 111.25,
-      "source": ["指定 TII、TOPS 試行，並要求結案寫回"] },
-    { "id": "ask.stamp", "plate": "ask", "role": "stamp", "text": "10 月中 PoC 後，約你 1:1", "start": 108.125, "end": 111.25,
-      "source": ["提案還沒給 Johnson 看，PoC 後再約", "| **W2** | 10/12–10/16 | **速勝批次（PoC）**"] }
+    { "id": "outro.label", "plate": "outro", "role": "label", "text": "部門共享大腦｜軟體部", "start": 101.25, "end": 105,
+      "source": ["部門共享大腦（dept-brain）的提案", "軟體部和公司 AI 平台"] }
   ],
   "sfx": [
     { "t": 0, "kind": "rise", "plate": "open", "note": "低頻 rise，光點從黑暗中出現" },
@@ -131,10 +126,6 @@
     { "t": 83.125, "kind": "stamp", "plate": "schedule", "note": "11 月底驗收" },
     { "t": 90, "kind": "whoosh", "plate": "layer", "note": "切到堆疊" },
     { "t": 91.25, "kind": "rise", "plate": "layer", "note": "03 層抬升" },
-    { "t": 100, "kind": "paper", "plate": "ask", "note": "切到表單" },
-    { "t": 102.5, "kind": "tick", "plate": "ask", "note": "勾選 1" },
-    { "t": 104.375, "kind": "tick", "plate": "ask", "note": "勾選 2" },
-    { "t": 106.25, "kind": "tick", "plate": "ask", "note": "勾選 3" },
-    { "t": 108.125, "kind": "stamp", "plate": "ask", "note": "amber 印章" }
+    { "t": 100, "kind": "soft", "plate": "outro", "note": "柔和收尾音：線收回成光點" }
   ]
 }

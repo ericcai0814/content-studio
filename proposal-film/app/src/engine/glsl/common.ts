@@ -21,7 +21,6 @@ const vec3 C_GRAPHITE = ${v3(LIN.graphite)};
 const vec3 C_ASH = ${v3(LIN.ash)};
 const vec3 C_BONE = ${v3(LIN.bone)};
 const vec3 C_SIGNAL = ${v3(LIN.signal)};
-const vec3 C_AMBER = ${v3(LIN.amber)};
 const vec3 C_REDLINE = ${v3(LIN.redline)};
 
 /** Rotated-grid supersample offset k (0..3) within one pixel, in pixels. See SS_TAP (gl.ts). */

@@ -1,8 +1,8 @@
 import { hexToLinear } from './util';
 
 // The film's palette (docs/TREATMENT.md): ink, bone and one signal colour, the ewill teal.
-// Only signal glows. Amber belongs to the final "please decide" moment only; redline to the
-// correction marks on the copies plate only.
+// Only signal glows, and it is the film's only accent; redline belongs to the correction marks on
+// the copies plate only.
 export const HEX = {
   ink: '#0A0A0B', // background black
   ink2: '#151517', // raised black (panels, slabs)
@@ -10,7 +10,6 @@ export const HEX = {
   ash: '#9C978F', // mid grey
   bone: '#EEE9DF', // paper white, primary text
   signal: '#00979C', // ewill teal: the thread, the one thing that glows
-  amber: '#FBAE40', // only the final ask
   redline: '#B0382B', // only the correction marks on plate 2
 } as const;
 

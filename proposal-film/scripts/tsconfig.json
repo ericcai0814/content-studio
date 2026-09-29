@@ -1,0 +1,5 @@
+{
+  "extends": "../app/tsconfig.json",
+  "compilerOptions": { "types": ["bun"], "typeRoots": ["../app/node_modules/@types"] },
+  "include": ["*.ts"]
+}

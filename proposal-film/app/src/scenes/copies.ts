@@ -14,7 +14,7 @@ const SW = 250, SH = 330, X0 = 170, STEP = 205, Y0 = 190;
 const stampT = (i: number) => 10.625 + 0.625 * i;
 /** The correction mark on a sheet, in sheet space. */
 const MARK = { x: 18, y: 20, w: SW * 0.55 + 12, h: 26 };
-const NOTE_X = X0 + 26, NOTE_Y = 640, NOTE_DY = 72;
+const NOTE_X = X0, NOTE_Y = 640, NOTE_DY = 72;
 
 export default class Copies extends Plate {
   /** Where sheet i sits at time t: top-left, rotation, press progress, visibility. */
@@ -93,8 +93,6 @@ export default class Copies extends Plate {
     notes.forEach((n, k) => {
       const y = NOTE_Y + k * NOTE_DY;
       const a = cueVis(t, n);
-      c.fillStyle = rgba('redline', a);
-      c.fillRect(X0, y - 30, 6, 34);
       drawCue(c, n, t, NOTE_X, y, { color: red });
       // red leader: from the note's end, across, then up to the bottom of its mark on sheet k+1
       const s = this.sheet(k + 1, t);

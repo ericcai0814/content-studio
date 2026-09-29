@@ -29,7 +29,7 @@ export interface PostParams {
   frame: number;
   /** 0..1: the frame is light (bone paper) — the HUD switches the crop marks to ink. */
   paper: number;
-  fade: number; // fade to black 0..1
+  fade: number; // fade to the ink ground 0..1
   flash: number; // additive bone-white flash 0..1+
   shake: [number, number]; // frame offset in px
   zoom: number; // frame zoom (1 = none), for punch-ins on hits
@@ -143,7 +143,7 @@ ${SCALE === 1 ? `        c += texture(src, vUv + texel * vec2(-1, -1)).rgb; c +=
         // vignette
         float v = smoothstep(0.95, 0.25, length(dc * vec2(1.0, 0.8)));
         col *= mix(1.0, v, vignette);
-        col *= (1.0 - fade);
+        col = mix(col, C_INK, fade); // fade to the ink ground, never to pure black
         vec3 s = toSRGB(sat(col));
         // film grain: two scales, stronger in mid-tones
 ${SCALE === 1 ? `        float g1 = hash12(gl_FragCoord.xy + fract(time * 13.37) * 1000.0) - 0.5;

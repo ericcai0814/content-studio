@@ -2,7 +2,7 @@
 // Fact check: everything the film says must be traceable to the proposal's source of truth,
 // dept-brain.md (read-only here).
 //
-//   bun scripts/check-facts.ts [--doc path/to/dept-brain.md]
+//   bun scripts/check-facts.ts [--doc path/to/dept-brain.md] [--cues data/cues-v3.json]
 //
 // For every text cue in data/cues.json:
 //   VERBATIM  the text itself occurs in dept-brain.md (after normalisation, see norm()), or
@@ -11,8 +11,8 @@
 //   FAIL      anything else: no source, a source not found, or a number found nowhere in the doc.
 // Every number shown must occur in dept-brain.md; a number found in the doc but not in the cue's own
 // source is reported as a warning (it is not backed by that line's anchor).
-// Scene modules must not hard-code display text: any string literal in app/src/scenes/*.ts that
-// contains CJK must itself occur verbatim in dept-brain.md.
+// Scene modules must not hard-code display text: any string literal in app/src/scenes/*.ts or
+// app/src/scenes-v3/*.ts that contains CJK must itself occur verbatim in dept-brain.md.
 import { readFileSync, readdirSync } from 'node:fs';
 import path from 'node:path';
 
@@ -31,7 +31,8 @@ const states = (src: string, n: string) => numbers(src).includes(n) || (+n <= 10
 
 const doc = readFileSync(DOC, 'utf8');
 const docN = norm(doc);
-const cues = JSON.parse(readFileSync(path.join(ROOT, 'data/cues.json'), 'utf8')) as { texts: { id: string; text: string; source?: string[] }[] };
+const CUES = path.resolve(ROOT, opt('cues') ?? 'data/cues.json');
+const cues = JSON.parse(readFileSync(CUES, 'utf8')) as { texts: { id: string; text: string; source?: string[] }[] };
 
 let fails = 0, warns = 0, verbatim = 0, anchored = 0;
 const out: string[] = [];
@@ -51,20 +52,20 @@ for (const c of cues.texts) {
 }
 
 // scene modules: CJK string literals (comments stripped first)
-const sceneDir = path.join(ROOT, 'app/src/scenes');
 let literals = 0;
-for (const f of readdirSync(sceneDir).filter((f) => f.endsWith('.ts'))) {
-  const code = readFileSync(path.join(sceneDir, f), 'utf8').replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:])\/\/.*$/gm, '$1');
+for (const dir of ['scenes', 'scenes-v3']) for (const f of readdirSync(path.join(ROOT, 'app/src', dir)).filter((f) => f.endsWith('.ts'))) {
+  const code = readFileSync(path.join(ROOT, 'app/src', dir, f), 'utf8').replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:])\/\/.*$/gm, '$1');
   for (const m of code.matchAll(/'([^'\n]*)'|"([^"\n]*)"|`([^`]*)`/g)) {
     const s = m[1] ?? m[2] ?? m[3] ?? '';
     if (!/\p{Script=Han}/u.test(s)) continue;
     literals++;
-    if (!docN.includes(norm(s))) { fails++; out.push(`  FAIL  scenes/${f}: literal "${s}" not in doc`); }
-    for (const n of numbers(s)) if (!states(doc, n)) { fails++; out.push(`  FAIL  scenes/${f}: number ${n} in "${s}" not in doc`); }
+    if (!docN.includes(norm(s))) { fails++; out.push(`  FAIL  ${dir}/${f}: literal "${s}" not in doc`); }
+    for (const n of numbers(s)) if (!states(doc, n)) { fails++; out.push(`  FAIL  ${dir}/${f}: number ${n} in "${s}" not in doc`); }
   }
 }
 
 console.log(`doc: ${DOC}`);
+console.log(`cues: ${path.relative(ROOT, CUES)}`);
 console.log(out.join('\n'));
 console.log(`texts ${cues.texts.length}: verbatim ${verbatim}, anchored ${anchored}, failed ${cues.texts.length - verbatim - anchored}; scene CJK literals ${literals}`);
 console.log(`number warnings ${warns}`);

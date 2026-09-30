@@ -2,3 +2,7 @@ node_modules/
 .vite/
 # renders (drafts, contact sheets, stills): regenerable and large
 out/
+# v3 music analysis: local Python env; licensed audio is re-downloadable (records in docs/ASSETS-v3.md)
+.venv/
+audio/music/
+audio/sfx-v3/

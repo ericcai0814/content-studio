@@ -14,7 +14,7 @@
 //   TIME     each row's 時間 cell is exactly bar (n-1)..n of the recommended track's measured bar
 //            (data/music-analysis.json tracks[0].bar_s, rounded to 0.01 s); texts start inside the
 //            film, start before they end, and end by the film's end.
-//   CUT      a 剪接 cell either starts with 不剪 or names its cut time as （t; every cut is on a strong
+//   CUT      a 剪接 cell either starts with 不剪 or names its cut time as （t.tt; every cut is on a strong
 //            beat (beat 1 or 3) inside its own bar; shots between cuts (and the film's ends) last 2..4 s.
 //   EXIT     a text either ends on a cut (leaves with it) or its EXIT s fade-out ends by the next cut.
 //   FORMAT   a 文字 cell is 無 or only 「text」 start→end items separated by ；, so no text escapes
@@ -38,6 +38,11 @@ const BAR = analysis.tracks[0]!.bar_s;
 const DUR = BARS * BAR;
 const t2 = (x: number) => (Math.round(x * 100) / 100).toFixed(2);
 const near = (a: number, b: number) => Math.abs(a - b) < 0.011;
+/** Film seconds are written with exactly two decimals ("3.00"); anything else (".", "1.2.3") is not a time. */
+const SEC = String.raw`\d+\.\d{2}`;
+const CUT_AT = new RegExp(`（(${SEC})[，）]`);
+const TEXT_ITEM = new RegExp(`^「[^」]+」\\s*${SEC}→${SEC}$`);
+const TEXT_ITEMS = new RegExp(`「([^」]+)」\\s*(${SEC})→(${SEC})`, 'g');
 
 /** Same as check-facts.ts. */
 const norm = (s: string) => s.toLowerCase().replace(/[\s*`|#>，。、「」『』（）()：:；;！!？?“”"'‘’—–\-/…｜·,.\[\]→＝=]/g, '');
@@ -72,8 +77,8 @@ for (const r of rows) {
   if (timeCell !== want) errs.push(`TIME bar ${n}: 時間 "${timeCell}", expected "${want}"`);
 
   if (!cutCell.startsWith('不剪')) {
-    const m = cutCell.match(/（([\d.]+)/);
-    if (!m) errs.push(`CUT bar ${n}: 剪接 cell names no cut time （t`);
+    const m = cutCell.match(CUT_AT);
+    if (!m) errs.push(`CUT bar ${n}: 剪接 cell names no cut time （t.tt`);
     else {
       const t = Number(m[1]), rel = t - (n - 1) * BAR;
       if (rel < -0.011 || rel > BAR - 0.011) errs.push(`CUT bar ${n}: cut ${m[1]} is outside the bar`);
@@ -84,9 +89,9 @@ for (const r of rows) {
 
   if (textCell !== '無') {
     const items = textCell.split('；').map((x) => x.trim());
-    for (const it of items) if (!/^「[^」]+」\s*[\d.]+→[\d.]+$/.test(it)) errs.push(`FORMAT bar ${n}: "${it}" is not 「text」 start→end`);
+    for (const it of items) if (!TEXT_ITEM.test(it)) errs.push(`FORMAT bar ${n}: "${it}" is not 「text」 start→end`);
   }
-  for (const m of textCell.matchAll(/「([^」]+)」\s*([\d.]+)→([\d.]+)/g)) {
+  for (const m of textCell.matchAll(TEXT_ITEMS)) {
     texts++;
     const [, text, a, b] = m as unknown as [string, string, string, string];
     const inCues = cueTexts.has(text);

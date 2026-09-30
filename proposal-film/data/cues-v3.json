@@ -1,0 +1,271 @@
+{
+ "composition": "v3",
+ "bpm": 126.02,
+ "offset": 0,
+ "beatsPerBar": 4,
+ "cutBeats": [
+  1,
+  3
+ ],
+ "duration": 38.089192191715604,
+ "music": {
+  "file": "audio/music/mixkit-720-new-bass-01.mp3",
+  "trackStart": 13.413,
+  "fadeIn": 0.05,
+  "fadeOutStart": 36.589192191715604,
+  "fadeOut": 1.5
+ },
+ "plates": [
+  {
+   "id": "open",
+   "start": 0.0,
+   "end": 2.8566894143786703,
+   "title": "黑場，光點拉出線，標題"
+  },
+  {
+   "id": "copies",
+   "start": 2.8566894143786703,
+   "end": 5.713378828757341,
+   "title": "公文紙：同一份規範 5 份",
+   "paper": true
+  },
+  {
+   "id": "meanings",
+   "start": 5.713378828757341,
+   "end": 9.522298047928901,
+   "title": "藍圖：狀態欄分出 4 條引線，留白"
+  },
+  {
+   "id": "halfway",
+   "start": 9.522298047928901,
+   "end": 13.331217267100461,
+   "title": "drop：線框收攏，雕版實體與倒影"
+  },
+  {
+   "id": "converge-a",
+   "start": 13.331217267100461,
+   "end": 17.14013648627202,
+   "title": "玻璃平板帶倒影，轉正收攏"
+  },
+  {
+   "id": "converge-b",
+   "start": 17.14013648627202,
+   "end": 20.949055705443584,
+   "title": "跟焦到 dept-brain 核心，寫回循環"
+  },
+  {
+   "id": "schedule-a",
+   "start": 20.949055705443584,
+   "end": 24.75797492461514,
+   "title": "路線圖：W0 蓋印，路線顯現",
+   "paper": true
+  },
+  {
+   "id": "schedule-b",
+   "start": 24.75797492461514,
+   "end": 27.614664338993812,
+   "title": "路線另一端：W8 蓋印",
+   "paper": true
+  },
+  {
+   "id": "dogfood-a",
+   "start": 27.614664338993812,
+   "end": 30.471353753372483,
+   "title": "線稿：線繞回軟體部，節點亮起"
+  },
+  {
+   "id": "dogfood-b",
+   "start": 30.471353753372483,
+   "end": 34.28027297254404,
+   "title": "跟焦到遠處產品輪廓"
+  },
+  {
+   "id": "outro",
+   "start": 34.28027297254404,
+   "end": 38.089192191715604,
+   "title": "線收回成光點，淡出"
+  }
+ ],
+ "texts": [
+  {
+   "id": "open.title",
+   "plate": "open",
+   "role": "display",
+   "text": "從 Project AI 到 Department AI",
+   "start": 0.3,
+   "end": 2.8566894143786703
+  },
+  {
+   "id": "copies.main",
+   "plate": "copies",
+   "role": "headline",
+   "text": "同一份規範，寫了 5 次。",
+   "start": 2.8566894143786703,
+   "end": 5.713378828757341,
+   "source": [
+    "同一份規範寫了好幾次",
+    "`測試案例撰寫規範` 有 5 個版本"
+   ]
+  },
+  {
+   "id": "meanings.main",
+   "plate": "meanings",
+   "role": "headline",
+   "text": "同一個欄位，4 種意思。",
+   "start": 5.8,
+   "end": 8.62,
+   "source": [
+    "追溯表同一條鏈、四種形狀",
+    "「狀態」欄在 TOPS 是測試結果、OAC 是需求生命週期、PMOS 是文件狀態、TII 是驗測狀態"
+   ]
+  },
+  {
+   "id": "halfway.main",
+   "plate": "halfway",
+   "role": "headline",
+   "text": "好消息，我們已經走了一半。",
+   "start": 9.522298047928901,
+   "end": 13.331217267100461,
+   "source": [
+    "好消息是我們已經走了一半"
+   ]
+  },
+  {
+   "id": "converge.core",
+   "plate": "converge-b",
+   "role": "label",
+   "text": "dept-brain",
+   "start": 17.14013648627202,
+   "end": 20.949055705443584
+  },
+  {
+   "id": "converge.t1",
+   "plate": "converge-b",
+   "role": "headline",
+   "text": "部門唯一版本",
+   "start": 17.6,
+   "end": 20.949055705443584
+  },
+  {
+   "id": "schedule.n2",
+   "plate": "schedule-a",
+   "role": "headline",
+   "text": "驗收過半才進下一階段，沒過就停",
+   "start": 20.949055705443584,
+   "end": 24.75797492461514,
+   "source": [
+    "**過半（≥4 條）** 進 Phase 2 評估",
+    "**沒過半**就停止 Phase 1"
+   ]
+  },
+  {
+   "id": "schedule.w0",
+   "plate": "schedule-a",
+   "role": "label",
+   "text": "W0",
+   "start": 21.425170607840027,
+   "end": 24.75797492461514
+  },
+  {
+   "id": "schedule.w8",
+   "plate": "schedule-b",
+   "role": "label",
+   "text": "W8",
+   "start": 24.75797492461514,
+   "end": 27.614664338993812
+  },
+  {
+   "id": "dogfood.t1",
+   "plate": "dogfood-a",
+   "role": "headline",
+   "text": "先用在自己身上。",
+   "start": 27.8,
+   "end": 30.471353753372483,
+   "source": [
+    "**定位：Dogfooding**：先用在軟體部自己身上，真正解決我們自己的痛點，驗證過才能產品化"
+   ]
+  },
+  {
+   "id": "dogfood.tag",
+   "plate": "dogfood-b",
+   "role": "label",
+   "text": "DOGFOODING",
+   "start": 30.7,
+   "end": 34.28027297254404
+  },
+  {
+   "id": "outro.label",
+   "plate": "outro",
+   "role": "label",
+   "text": "部門共享大腦｜軟體部",
+   "start": 34.6,
+   "end": 37.6,
+   "source": [
+    "部門共享大腦（dept-brain）的提案",
+    "軟體部和公司 AI 平台"
+   ]
+  }
+ ],
+ "sfx": [
+  {
+   "t": 2.8566894143786703,
+   "kind": "mixkit-1530",
+   "plate": "copies",
+   "hit": 2.864,
+   "file": "audio/sfx-v3/mixkit-1530.wav",
+   "peak": 0.351,
+   "gainDb": -14,
+   "note": "匹配剪接到公文紙"
+  },
+  {
+   "t": 5.713378828757341,
+   "kind": "mixkit-166",
+   "plate": "meanings",
+   "hit": 5.709,
+   "file": "audio/sfx-v3/mixkit-166.wav",
+   "peak": 0.287,
+   "gainDb": -16,
+   "note": "藍圖遮罩顯現"
+  },
+  {
+   "t": 9.522298047928901,
+   "kind": "mixkit-1489",
+   "plate": "halfway",
+   "hit": 9.517,
+   "file": "audio/sfx-v3/mixkit-1489.wav",
+   "peak": 0.72,
+   "gainDb": -12,
+   "note": "峰值對齊 drop"
+  },
+  {
+   "t": 21.425170607840027,
+   "kind": "mixkit-1125",
+   "plate": "schedule-a",
+   "hit": 21.429,
+   "file": "audio/sfx-v3/mixkit-1125.wav",
+   "peak": 0.116,
+   "gainDb": -16,
+   "note": "W0 蓋印"
+  },
+  {
+   "t": 25.710204729408034,
+   "kind": "mixkit-1125",
+   "plate": "schedule-b",
+   "hit": 25.724,
+   "file": "audio/sfx-v3/mixkit-1125.wav",
+   "peak": 0.116,
+   "gainDb": -16,
+   "note": "W8 蓋印"
+  },
+  {
+   "t": 35.23250277733693,
+   "kind": "mixkit-3109",
+   "plate": "outro",
+   "hit": 35.233,
+   "file": "audio/sfx-v3/mixkit-3109.wav",
+   "peak": 0.07,
+   "gainDb": -18,
+   "note": "光點落定"
+  }
+ ]
+}

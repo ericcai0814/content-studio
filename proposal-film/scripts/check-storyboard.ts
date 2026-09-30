@@ -11,6 +11,14 @@
 //            check-facts.ts; every number in it occurs in dept-brain.md.
 //   DWELL    every text stays readable at least units / 5 + 1 seconds (same rule and units as
 //            check-readability.ts).
+//   TIME     each row's 時間 cell is exactly bar (n-1)..n of the recommended track's measured bar
+//            (data/music-analysis.json tracks[0].bar_s, rounded to 0.01 s); texts start inside the
+//            film, start before they end, and end by the film's end.
+//   CUT      a 剪接 cell either starts with 不剪 or names its cut time as （t; every cut is on a strong
+//            beat (beat 1 or 3) inside its own bar; shots between cuts (and the film's ends) last 2..4 s.
+//   EXIT     a text either ends on a cut (leaves with it) or its EXIT s fade-out ends by the next cut.
+//   FORMAT   a 文字 cell is 無 or only 「text」 start→end items separated by ；, so no text escapes
+//            the checks by being written in another shape.
 //   DASH     the file has no em dash or en dash anywhere.
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
@@ -22,6 +30,14 @@ const DOC = opt('doc') ?? process.env.DEPT_BRAIN ?? path.join(process.env.HOME ?
 const BOARD = path.join(ROOT, 'docs/STORYBOARD-v3.md');
 const BARS = 20;
 const EPS = 1e-6;
+/** Matches ENTER/EXIT in app/src/scenes/_motifs.ts and check-readability.ts. */
+const EXIT = 0.45;
+const SHOT_MIN = 2, SHOT_MAX = 4;
+const analysis = JSON.parse(readFileSync(path.join(ROOT, 'data/music-analysis.json'), 'utf8')) as { tracks: { id: string; bar_s: number }[] };
+const BAR = analysis.tracks[0]!.bar_s;
+const DUR = BARS * BAR;
+const t2 = (x: number) => (Math.round(x * 100) / 100).toFixed(2);
+const near = (a: number, b: number) => Math.abs(a - b) < 0.011;
 
 /** Same as check-facts.ts. */
 const norm = (s: string) => s.toLowerCase().replace(/[\s*`|#>，。、「」『』（）()：:；;！!？?“”"'‘’—–\-/…｜·,.\[\]→＝=]/g, '');
@@ -46,25 +62,61 @@ const bars = rows.map((r) => Number(r[0]));
 if (bars.length !== BARS || bars.some((b, i) => b !== i + 1)) errs.push(`ROWS expected bars 1..${BARS}, got [${bars.join(', ')}]`);
 
 let texts = 0, fromCues = 0, fromDoc = 0;
+const spans: { bar: string; text: string; a: number; b: number }[] = [];
+const cuts: number[] = [];
 for (const r of rows) {
-  if (r.length < 6) { errs.push(`ROWS bar ${r[0]}: ${r.length} cells, expected 6`); continue; }
-  for (const m of r[3]!.matchAll(/「([^」]+)」\s*([\d.]+)→([\d.]+)/g)) {
+  if (r.length !== 6) { errs.push(`ROWS bar ${r[0]}: ${r.length} cells, expected 6`); continue; }
+  const [barCell, timeCell, , textCell, cutCell] = r as [string, string, string, string, string, string];
+  const n = Number(barCell);
+  const want = `${t2((n - 1) * BAR)}→${t2(n * BAR)}`;
+  if (timeCell !== want) errs.push(`TIME bar ${n}: 時間 "${timeCell}", expected "${want}"`);
+
+  if (!cutCell.startsWith('不剪')) {
+    const m = cutCell.match(/（([\d.]+)/);
+    if (!m) errs.push(`CUT bar ${n}: 剪接 cell names no cut time （t`);
+    else {
+      const t = Number(m[1]), rel = t - (n - 1) * BAR;
+      if (rel < -0.011 || rel > BAR - 0.011) errs.push(`CUT bar ${n}: cut ${m[1]} is outside the bar`);
+      else if (!near(rel, 0) && !near(rel, BAR / 2)) errs.push(`CUT bar ${n}: cut ${m[1]} is not on beat 1 or 3`);
+      cuts.push(t);
+    }
+  }
+
+  if (textCell !== '無') {
+    const items = textCell.split('；').map((x) => x.trim());
+    for (const it of items) if (!/^「[^」]+」\s*[\d.]+→[\d.]+$/.test(it)) errs.push(`FORMAT bar ${n}: "${it}" is not 「text」 start→end`);
+  }
+  for (const m of textCell.matchAll(/「([^」]+)」\s*([\d.]+)→([\d.]+)/g)) {
     texts++;
     const [, text, a, b] = m as unknown as [string, string, string, string];
     const inCues = cueTexts.has(text);
     const inDoc = docN.includes(norm(text));
     if (inCues) fromCues++; else if (inDoc) fromDoc++;
-    else errs.push(`SOURCE bar ${r[0]} "${text}": not a cues.json text and not in dept-brain.md`);
-    for (const n of new Set(numbers(text))) if (!states(doc, n)) errs.push(`SOURCE bar ${r[0]} "${text}": number ${n} not in dept-brain.md`);
+    else errs.push(`SOURCE bar ${n} "${text}": not a cues.json text and not in dept-brain.md`);
+    for (const x of new Set(numbers(text))) if (!states(doc, x)) errs.push(`SOURCE bar ${n} "${text}": number ${x} not in dept-brain.md`);
     const u = units(text), need = u / 5 + 1, dwell = Number(b) - Number(a);
-    if (dwell < need - EPS) errs.push(`DWELL bar ${r[0]} "${text}": ${dwell.toFixed(2)}s < ${need.toFixed(2)}s (${u} units)`);
-    out.push(`  bar ${r[0]!.padStart(2)}  ${inCues ? 'cues' : inDoc ? 'doc ' : '??? '}  ${dwell.toFixed(2).padStart(5)}s >= ${need.toFixed(2)}s  ${text}`);
+    if (dwell < need - EPS) errs.push(`DWELL bar ${n} "${text}": ${dwell.toFixed(2)}s < ${need.toFixed(2)}s (${u} units)`);
+    if (Number(a) < -EPS || Number(a) >= Number(b) || Number(b) > DUR + 0.011) errs.push(`TIME bar ${n} "${text}": ${a}→${b} is not inside 0→${t2(DUR)}`);
+    spans.push({ bar: String(n), text, a: Number(a), b: Number(b) });
+    out.push(`  bar ${String(n).padStart(2)}  ${inCues ? 'cues' : inDoc ? 'doc ' : '??? '}  ${dwell.toFixed(2).padStart(5)}s >= ${need.toFixed(2)}s  ${text}`);
   }
+}
+
+// shots: from 0 through every cut to the film's end
+const bounds = [0, ...cuts, DUR];
+for (let i = 1; i < bounds.length; i++) {
+  const len = bounds[i]! - bounds[i - 1]!;
+  if (len < SHOT_MIN - 0.011 || len > SHOT_MAX + 0.011) errs.push(`CUT shot ${t2(bounds[i - 1]!)}→${t2(bounds[i]!)} lasts ${len.toFixed(2)}s, not ${SHOT_MIN}..${SHOT_MAX}s`);
+}
+for (const s of spans) {
+  const next = bounds.find((c) => c > s.a + EPS) ?? DUR;
+  if (!near(s.b, next) && s.b + EXIT > next + EPS) errs.push(`EXIT bar ${s.bar} "${s.text}": ends ${t2(s.b)}, its ${EXIT}s exit runs past the cut at ${t2(next)}`);
 }
 
 console.log(`doc: ${DOC}`);
 console.log(out.join('\n'));
 if (errs.length) console.log(errs.map((e) => `  FAIL  ${e}`).join('\n'));
+console.log(`bar ${BAR}s (${analysis.tracks[0]!.id}); cuts ${cuts.length}, shots ${bounds.length - 1}`);
 console.log(`rows ${rows.length}/${BARS}; texts ${texts}: from cues.json ${fromCues}, from dept-brain.md ${fromDoc}`);
 console.log(`failed: ${errs.length}`);
 process.exit(errs.length ? 1 : 0);

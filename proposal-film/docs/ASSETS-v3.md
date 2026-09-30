@@ -21,15 +21,18 @@
 
 交接指定 Pixabay 優先。2026-09-30 實測：搜尋頁可進入，但曲目音檔（`cdn.pixabay.com/audio/...mp3`，含網站自己的播放與「Free download」）對自動化瀏覽器一律回 404；不繞過它的防機器人機制，也不登入。另外，看到的曲目頁多標有「Content ID Registered」，放上 YouTube 可能被認領。改用下一順位的免費、可商用、免標註來源。原列為 CC0 來源的 FreePD（https://freepd.com/）已關站。
 
-## 配樂候選（3 首）
+## 配樂（3 首候選，最終採用 720）
+
+**最終使用 Mixkit 720「New Bass 01」（Lily J）**：Eric 於 2026-10-01 選定，取曲目 13.413 到 51.503 秒（20 小節，38.09 秒），見 `docs/STORYBOARD-v3.md` 與 `data/music-analysis.json` 的 `selected`。另外兩首只留作紀錄。
+
 
 曲目沒有獨立頁面；「列表頁」是可以找到該曲的 Mixkit 頁面，「直連」是 Mixkit 下載按鈕實際下載的檔案（2026-09-30 用瀏覽器網路紀錄確認）。
 
 | 本地檔 | 曲名／作者 | 列表頁 | 直連 | 長度 | 授權 | SHA-256 |
 |---|---|---|---|---|---|---|
-| `audio/music/mixkit-634-your-breath.mp3`（推薦） | Your Breath／Eugenio Mininni | https://mixkit.co/free-stock-music/tag/corporate/ | https://assets.mixkit.co/music/634/634.mp3 | 3:56 | Mixkit Stock Music Free License | `8b837348a9c5b61f359fa458af832bfe957f3da461039af3ba0ba6c6f467ed0e` |
-| `audio/music/mixkit-623-deep-urban.mp3` | Deep Urban／Eugenio Mininni | https://mixkit.co/free-stock-music/?q=deep+urban | https://assets.mixkit.co/music/623/623.mp3 | 4:49 | Mixkit Stock Music Free License | `ac7e28f0cdd6c607df199c759f34ca66cfebd881ea61c26473fb4cecebe64fa8` |
-| `audio/music/mixkit-720-new-bass-01.mp3` | New Bass 01／Lily J | https://mixkit.co/free-stock-music/tag/technology/ | https://assets.mixkit.co/music/720/720.mp3 | 1:36 | Mixkit Stock Music Free License | `6389a142c19ca427a32517a815f06eeaa2b6be0512edb5137c502bf840ac0f63` |
+| `audio/music/mixkit-634-your-breath.mp3`（候選，未採用） | Your Breath／Eugenio Mininni | https://mixkit.co/free-stock-music/tag/corporate/ | https://assets.mixkit.co/music/634/634.mp3 | 3:56 | Mixkit Stock Music Free License | `8b837348a9c5b61f359fa458af832bfe957f3da461039af3ba0ba6c6f467ed0e` |
+| `audio/music/mixkit-623-deep-urban.mp3`（候選，未採用） | Deep Urban／Eugenio Mininni | https://mixkit.co/free-stock-music/?q=deep+urban | https://assets.mixkit.co/music/623/623.mp3 | 4:49 | Mixkit Stock Music Free License | `ac7e28f0cdd6c607df199c759f34ca66cfebd881ea61c26473fb4cecebe64fa8` |
+| `audio/music/mixkit-720-new-bass-01.mp3`（**最終採用**） | New Bass 01／Lily J | https://mixkit.co/free-stock-music/tag/technology/ | https://assets.mixkit.co/music/720/720.mp3 | 1:36 | Mixkit Stock Music Free License | `6389a142c19ca427a32517a815f06eeaa2b6be0512edb5137c502bf840ac0f63` |
 
 Mixkit 標籤：634 是 Corporate Music／Electronica／Positive／Futuristic；623 是 House／Tech House／Hypnotic／Driving；720 是 Underscore／Positive／Futuristic／Industry。三首都是器樂（依 Mixkit 分類與標籤；人聲有無需試聽確認）。
 

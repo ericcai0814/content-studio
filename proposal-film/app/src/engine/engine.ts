@@ -134,8 +134,8 @@ export class Engine {
       }`, { e: { value: null } });
   }
 
-  async init(only?: (e: TimelineEntry) => boolean) {
-    [this.cues] = await Promise.all([Cues.load(), loadFonts()]);
+  async init(only?: (e: TimelineEntry) => boolean, cuesFile?: string) {
+    [this.cues] = await Promise.all([Cues.load(cuesFile), loadFonts()]);
     this.timeline = this.makeTimeline(this.cues);
     this.ctx = { renderer: this.renderer, cues: this.cues, comp: this.comp, W, H, id: '', params: {}, start: 0, end: 0 };
     this.post = new Post();

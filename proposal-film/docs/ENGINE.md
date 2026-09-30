@@ -15,6 +15,8 @@ All commands from `app/` (run `bun install` once).
 - `render.ts` starts its own Vite server without live reload. `--url http://localhost:5190` reuses a running one; it must serve this app (5173 is often another project's).
 - Typecheck: `bun run typecheck`.
 
+The 38 s cut (v3, docs/STORYBOARD-v3.md) is a second composition on the same engine: `data/cues-v3.json` (shots timed on the licensed music's bar grid, `cutBeats` [1, 3], `music`, sfx with measured `hit`s) and `src/scenes-v3/` (one module per shot, kit in `_v3.ts`). Add `?comp=v3` to the preview URL or `--comp v3` to any `render.ts` mode. Sound: `.venv/bin/python ../scripts/mix-v3.py` writes `../out/v3-mix.wav` (music + licensed effects, -14 LUFS); draft: `bun scripts/render.ts video --comp v3 --fps 30 --samples 1 --audio ../out/v3-mix.wav --out ../out/v3-draft-1080.mp4`. The checks below take `--cues data/cues-v3.json`; `check-storyboard.ts` checks the storyboard itself.
+
 Checks (from `proposal-film/`): `bun scripts/check-facts.ts` (every text and number traceable to dept-brain.md), `bun scripts/check-readability.ts` (dwell ≥ units/5 + 1, exits before cuts, cuts on downbeats, sfx on beats) and `bun scripts/check-sfx.ts out/m2.mp4` (each sound's measured onset within 30 ms of its cue).
 
 ## Data: `data/cues.json`

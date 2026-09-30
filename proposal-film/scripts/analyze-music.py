@@ -46,6 +46,8 @@ TRACKS = [
     {'id': 'mixkit-623', 'title': 'Deep Urban', 'artist': 'Eugenio Mininni', 'file': 'audio/music/mixkit-623-deep-urban.mp3'},
     {'id': 'mixkit-720', 'title': 'New Bass 01', 'artist': 'Lily J', 'file': 'audio/music/mixkit-720-new-bass-01.mp3'},
 ]
+# Eric's pick (2026-10-01); docs/STORYBOARD-v3.md and data/cues-v3.json are timed on this track
+SELECTED = 'mixkit-720'
 SFX = ['mixkit-1489', 'mixkit-1530', 'mixkit-1125', 'mixkit-3109', 'mixkit-166']
 
 
@@ -190,6 +192,7 @@ def main():
         'generated_by': 'scripts/analyze-music.py',
         'method': 'librosa %s; see the header of the script' % librosa.__version__,
         'bars': BARS,
+        'selected': SELECTED,
         'tracks': tracks,
         'sfx': [sfx_peak(s) for s in SFX],
     }

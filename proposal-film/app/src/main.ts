@@ -9,6 +9,9 @@ const params = new URLSearchParams(location.search);
 const EXPORT = params.has('export');
 const ONLY = params.get('only'); // comma-separated scene ids to load (faster stills)
 const FROM = params.get('t') ? parseFloat(params.get('t')!) : null;
+// ?comp=v3: the 38 s cut (data/cues-v3.json, scenes-v3/); default: the 105 s film (data/cues.json)
+const COMP = params.get('comp');
+const CUES_FILE = COMP ? `data/cues-${COMP}.json` : undefined;
 
 const canvas = document.getElementById('c') as HTMLCanvasElement;
 // physical size: 1920x1080 times ?scale= (the page CSS keeps showing it at 1920x1080)
@@ -25,7 +28,7 @@ let TIMELINE: typeof engine.timeline = [];
 
 async function boot() {
   const onlySet = ONLY ? new Set(ONLY.split(',')) : null;
-  await engine.init(onlySet ? (e) => onlySet.has(e.id) : undefined);
+  await engine.init(onlySet ? (e) => onlySet.has(e.id) : undefined, CUES_FILE);
   TIMELINE = engine.timeline;
   if (EXPORT) setupExport();
   else setupPlayer();

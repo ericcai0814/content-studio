@@ -11,6 +11,8 @@ export interface PlateCue {
   paper?: boolean;
   /** Working title, for the preview UI and the docs only (never drawn). */
   title: string;
+  /** Scene module that draws this entry (default: `id`); lets a plate be split into shots. */
+  scene?: string;
 }
 
 export interface TextCue {
@@ -28,10 +30,27 @@ export interface TextCue {
 }
 
 export interface SfxCue {
+  /** The beat the effect belongs to (on the grid). */
   t: number;
   kind: string;
   plate: string;
   note?: string;
+  /** v3: the music's measured peak on that beat; the effect's own peak is placed here. */
+  hit?: number;
+  /** v3: licensed sample (audio/sfx-v3/<kind>.wav), its peak offset (s) and gain relative to the music (dB). */
+  file?: string;
+  peak?: number;
+  gainDb?: number;
+}
+
+/** v3: the licensed music under the film (a cut of one track). */
+export interface MusicCue {
+  file: string;
+  /** Track time at film time 0. */
+  trackStart: number;
+  fadeIn: number;
+  fadeOutStart: number;
+  fadeOut: number;
 }
 
 export interface CueData {
@@ -39,7 +58,12 @@ export interface CueData {
   /** Film time of beat 0. */
   offset: number;
   beatsPerBar: number;
+  /** Beats of the bar a cut may land on (default [1], downbeats only). */
+  cutBeats?: number[];
   duration: number;
+  /** Which composition this file drives: absent for the 105 s film, 'v3' for the 38 s cut (scenes in scenes-v3/). */
+  composition?: string;
+  music?: MusicCue;
   plates: PlateCue[];
   texts: TextCue[];
   sfx: SfxCue[];
@@ -51,9 +75,9 @@ export class Cues {
     for (const c of data.texts) this.byId.set(c.id, c);
   }
 
-  static async load(): Promise<Cues> {
-    const r = await fetch('data/cues.json');
-    if (!r.ok) throw new Error(`data/cues.json: HTTP ${r.status}`);
+  static async load(file = 'data/cues.json'): Promise<Cues> {
+    const r = await fetch(file);
+    if (!r.ok) throw new Error(`${file}: HTTP ${r.status}`);
     return new Cues(await r.json());
   }
 
